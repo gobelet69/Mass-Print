@@ -3,7 +3,9 @@ use mass_print_core::{
     PrintBackend, PrintSettings, PrinterInfo,
 };
 use serde::Serialize;
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
@@ -152,6 +154,67 @@ fn cancel_printing(state: State<'_, RuntimeState>) -> Result<(), String> {
     Ok(())
 }
 
+fn finder_action_target(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .home_dir()
+        .map_err(|error| error.to_string())?
+        .join("Library/Services/Print with Mass Print.workflow"))
+}
+
+#[tauri::command]
+fn finder_action_installed(app: AppHandle) -> Result<bool, String> {
+    Ok(finder_action_target(&app)?.is_dir())
+}
+
+#[tauri::command]
+fn install_finder_action(app: AppHandle) -> Result<(), String> {
+    let source = app
+        .path()
+        .resource_dir()
+        .map_err(|error| error.to_string())?
+        .join("finder/Print with Mass Print.workflow");
+    let target = finder_action_target(&app)?;
+    if target.exists() {
+        return Err("The Finder action is already installed".into());
+    }
+    let services = target
+        .parent()
+        .ok_or_else(|| "Cannot locate the Services directory".to_string())?;
+    fs::create_dir_all(services).map_err(|error| error.to_string())?;
+    copy_directory(&source, &target)?;
+    let _ = Command::new("/System/Library/CoreServices/pbs")
+        .arg("-flush")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    Ok(())
+}
+
+fn copy_directory(source: &Path, target: &Path) -> Result<(), String> {
+    fs::create_dir_all(target).map_err(|error| error.to_string())?;
+    for entry in fs::read_dir(source).map_err(|error| {
+        format!(
+            "The bundled Finder action could not be read at {}: {error}",
+            source.display()
+        )
+    })? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let destination = target.join(entry.file_name());
+        if entry
+            .file_type()
+            .map_err(|error| error.to_string())?
+            .is_dir()
+        {
+            copy_directory(&entry.path(), &destination)?;
+        } else {
+            fs::copy(entry.path(), destination).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 fn add_existing_paths(app: &AppHandle, paths: impl IntoIterator<Item = PathBuf>) {
     let state = app.state::<RuntimeState>();
     let valid_paths: Vec<_> = paths.into_iter().filter(|path| path.is_file()).collect();
@@ -205,7 +268,9 @@ pub fn run() {
             move_document,
             list_printers,
             print_all,
-            cancel_printing
+            cancel_printing,
+            finder_action_installed,
+            install_finder_action
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Mass Print");

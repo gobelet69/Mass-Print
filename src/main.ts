@@ -24,6 +24,7 @@ let selectedIds = new Set<string>();
 let draggedId: string | null = null;
 let busy = false;
 let dropActive = false;
+let finderActionInstalled = false;
 let notice: { kind: "info" | "error" | "success"; message: string } | null = null;
 
 const settings: PrintSettings = {
@@ -106,6 +107,9 @@ function render(): void {
           <div><h1>Mass Print</h1><p>Batch printing, in your order.</p></div>
         </div>
         <div class="toolbar-actions">
+          <button id="finder-button" class="secondary" ${finderActionInstalled || busy ? "disabled" : ""}>
+            ${finderActionInstalled ? "Finder Action ✓" : "Install Finder Action"}
+          </button>
           <button id="clear-button" class="secondary" ${!hasDocuments || busy ? "disabled" : ""}>Clear Queue</button>
           <button id="add-button" class="primary" ${busy ? "disabled" : ""}>＋ Add Files</button>
         </div>
@@ -164,6 +168,7 @@ function bindEvents(): void {
   document.querySelector("#empty-add-button")?.addEventListener("click", chooseFiles);
   document.querySelector("#clear-button")?.addEventListener("click", clearQueue);
   document.querySelector("#print-button")?.addEventListener("click", printAll);
+  document.querySelector("#finder-button")?.addEventListener("click", installFinderAction);
   document.querySelector("#cancel-button")?.addEventListener("click", cancelPrinting);
   document.querySelector("#dismiss-notice")?.addEventListener("click", () => {
     notice = null;
@@ -329,6 +334,28 @@ async function loadPrinters(): Promise<void> {
   }
 }
 
+async function loadFinderActionStatus(): Promise<void> {
+  try {
+    finderActionInstalled = await invoke<boolean>("finder_action_installed");
+  } catch {
+    finderActionInstalled = false;
+  }
+}
+
+async function installFinderAction(): Promise<void> {
+  try {
+    await invoke("install_finder_action");
+    finderActionInstalled = true;
+    notice = {
+      kind: "success",
+      message: "Finder action installed. Select files in Finder, then use Quick Actions → Print with Mass Print.",
+    };
+  } catch (error) {
+    notice = { kind: "error", message: String(error) };
+  }
+  render();
+}
+
 document.addEventListener("keydown", async (event) => {
   if (event.metaKey && event.key.toLowerCase() === "o") {
     event.preventDefault();
@@ -366,7 +393,7 @@ void listen("queue-changed", () => {
 
 async function initialize(): Promise<void> {
   render();
-  await Promise.all([refreshQueue(), loadPrinters()]);
+  await Promise.all([refreshQueue(), loadPrinters(), loadFinderActionStatus()]);
   render();
 }
 

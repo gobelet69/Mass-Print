@@ -1,6 +1,6 @@
 [package]
 name = "mass-print"
-version = "0.1.0"
+version = "0.1.1"
 description = "A lightweight macOS batch printing utility"
 authors = ["Mass Print contributors"]
 edition = "2021"

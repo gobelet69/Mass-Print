@@ -67,15 +67,14 @@ Jobs are submitted one at a time in queue order. **Cancel** prevents further sub
 
 ## Finder Quick Action
 
-After placing `Mass Print.app` in `/Applications`, run:
-
-```sh
-./scripts/install-finder-action.sh
-```
+After placing `Mass Print.app` in `/Applications`, launch it and select
+**Install Finder Action** in the toolbar. The Quick Action is bundled inside
+the application; downloading the source code or using Terminal is not required.
 
 In Finder, select files, right-click, and choose **Quick Actions → Print with Mass Print**. Depending on macOS settings, it may appear under **Services**. The action passes each selected path to Mass Print and opens or focuses its existing window. It never starts printing.
 
-Remove it with:
+Developers working from a source checkout can alternatively install it with
+`./scripts/install-finder-action.sh`. Remove it with:
 
 ```sh
 ./scripts/uninstall-finder-action.sh
