@@ -39,6 +39,7 @@ let ignoreExternalEventsUntil = 0;
 let finderActionStatus: FinderActionStatus = {
   installed: false,
   valid: false,
+  registered: false,
   needsUpdate: false,
   path: "",
   message: "The Finder Quick Action is not installed",
@@ -171,9 +172,9 @@ function render(): void {
           <div><h1>Mass Print</h1><p>Batch printing, in your order.</p></div>
         </div>
         <div class="toolbar-actions">
-          <button id="finder-button" class="secondary" ${finderActionStatus.valid && !finderActionStatus.needsUpdate || busy ? "disabled" : ""}
+          <button id="finder-button" class="secondary" ${finderActionStatus.valid && finderActionStatus.registered && !finderActionStatus.needsUpdate || busy ? "disabled" : ""}
             title="${escapeHtml(finderActionStatus.message)}">
-            ${finderActionStatus.installed ? finderActionStatus.needsUpdate || !finderActionStatus.valid ? "Repair Finder Action" : "Finder Action ✓" : "Install Finder Action"}
+            ${finderActionStatus.installed ? finderActionStatus.needsUpdate || !finderActionStatus.valid ? "Repair Finder Action" : finderActionStatus.registered ? "Finder Action ✓" : "Register Finder Action" : "Install Finder Action"}
           </button>
           ${finderActionStatus.installed && finderActionStatus.valid ? `<button id="remove-finder-button" class="secondary compact" title="Remove Finder Quick Action">Remove</button>` : ""}
           <button id="clear-button" class="secondary" ${!hasDocuments || busy ? "disabled" : ""}>Clear Queue</button>
@@ -487,6 +488,7 @@ async function loadFinderActionStatus(): Promise<void> {
     finderActionStatus = {
       installed: false,
       valid: false,
+      registered: false,
       needsUpdate: false,
       path: "",
       message: "Finder Quick Action status is unavailable",
@@ -500,7 +502,7 @@ async function installFinderAction(): Promise<void> {
     await loadFinderActionStatus();
     notice = {
       kind: "success",
-      message: "Finder action installed and Finder refreshed. If it is hidden, enable it in System Settings → General → Login Items & Extensions → Finder Extensions.",
+      message: "Finder action installed and registered. Select a file in Finder, then use Quick Actions or Services → Print with Mass Print.",
     };
   } catch (error) {
     notice = { kind: "error", message: String(error) };

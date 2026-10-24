@@ -27,6 +27,7 @@ cp -R -- "$SOURCE_WORKFLOW" "$STAGING_WORKFLOW"
 /usr/bin/plutil -lint "$STAGING_WORKFLOW/Contents/document.wflow"
 rm -rf -- "$TARGET_WORKFLOW"
 mv -- "$STAGING_WORKFLOW" "$TARGET_WORKFLOW"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$TARGET_WORKFLOW" 2>/dev/null || true
 /System/Library/CoreServices/pbs -flush 2>/dev/null || true
 /System/Library/CoreServices/pbs -update 2>/dev/null || true
 /usr/bin/killall Finder 2>/dev/null || true

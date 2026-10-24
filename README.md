@@ -90,10 +90,12 @@ updates Mass Print's own workflow without creating duplicates.
 
 In Finder, select files, right-click, and choose **Quick Actions → Print with Mass Print**. Depending on macOS settings, it may appear under **Services**. The action passes each selected path to Mass Print and opens or focuses its existing window. It never starts printing.
 
-If the action remains hidden, enable **Print with Mass Print** in either Finder
-**Settings → Extensions** or macOS **System Settings → General → Login Items &
-Extensions → Finder Extensions**. macOS controls this user approval; Mass Print
-does not bypass it.
+The action is an Automator service, not a Finder Sync app extension. Depending
+on the macOS version, its checkbox is under **System Settings → Keyboard →
+Keyboard Shortcuts → Services → Files and Folders**. It may therefore not be
+listed in the separate **Finder Extensions** panel. Mass Print distinguishes a
+workflow that was merely copied from one that macOS actually registered and
+offers **Register Finder Action** when registration needs to be repaired.
 
 Use the **Remove** button beside **Finder Action ✓** to uninstall it. Developers
 working from a source checkout can alternatively install or remove it with:

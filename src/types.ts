@@ -48,6 +48,7 @@ export interface AddReport {
 export interface FinderActionStatus {
   installed: boolean;
   valid: boolean;
+  registered: boolean;
   needsUpdate: boolean;
   path: string;
   message: string;

@@ -27,6 +27,7 @@ jobs:
       - run: cargo check --manifest-path src-tauri/Cargo.toml
       - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/Info.plist"
       - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/document.wflow"
+      - run: test "$(plutil -extract CFBundlePackageType raw 'finder/Print with Mass Print.workflow/Contents/Info.plist')" = "BNDL"
       - run: grep -F '/usr/bin/open -b com.massprint.app -- "$@"' "finder/Print with Mass Print.workflow/Contents/document.wflow"
       - run: npm run tauri build -- --bundles app
       - name: Verify Finder Quick Action registration and cold launch
@@ -43,9 +44,7 @@ jobs:
           test -d "$WORKFLOW_PATH"
           plutil -lint "$WORKFLOW_PATH/Contents/Info.plist"
           plutil -lint "$WORKFLOW_PATH/Contents/document.wflow"
-          if ! /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"; then
-            echo "::warning::pbs does not expose Finder Quick Actions on this headless runner"
-          fi
+          /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"
           touch "$TEST_PDF"
           automator -i "$TEST_PDF" "$WORKFLOW_PATH"
           sleep 3
