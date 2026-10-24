@@ -28,6 +28,8 @@ jobs:
       - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/Info.plist"
       - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/document.wflow"
       - run: test "$(plutil -extract CFBundlePackageType raw 'finder/Print with Mass Print.workflow/Contents/Info.plist')" = "BNDL"
+      - run: test "$(plutil -extract NSServices.0.NSMessage raw 'finder/Print with Mass Print.workflow/Contents/Info.plist')" = "runWorkflowAsService"
+      - run: test "$(plutil -extract NSServices.0.NSSendFileTypes.0 raw 'finder/Print with Mass Print.workflow/Contents/Info.plist')" = "public.item"
       - run: grep -F '/usr/bin/open -b com.massprint.app -- "$@"' "finder/Print with Mass Print.workflow/Contents/document.wflow"
       - run: npm run tauri build -- --bundles app
       - name: Verify Finder Quick Action registration and cold launch
@@ -44,9 +46,7 @@ jobs:
           test -d "$WORKFLOW_PATH"
           plutil -lint "$WORKFLOW_PATH/Contents/Info.plist"
           plutil -lint "$WORKFLOW_PATH/Contents/document.wflow"
-          if ! /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"; then
-            echo "::notice::pbs does not expose user Quick Actions in this headless session"
-          fi
+          /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"
           touch "$TEST_PDF"
           automator -i "$TEST_PDF" "$WORKFLOW_PATH"
           sleep 3

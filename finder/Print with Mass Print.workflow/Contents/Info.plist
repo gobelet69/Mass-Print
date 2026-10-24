@@ -13,11 +13,36 @@
   <key>CFBundlePackageType</key>
   <string>BNDL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.3</string>
+  <string>1.4</string>
   <key>CFBundleSignature</key>
   <string>????</string>
   <key>CFBundleVersion</key>
-  <string>1.3</string>
+  <string>1.4</string>
+  <key>NSServices</key>
+  <array>
+    <dict>
+      <key>NSBackgroundColorName</key>
+      <string>background</string>
+      <key>NSIconName</key>
+      <string>NSActionTemplate</string>
+      <key>NSMenuItem</key>
+      <dict>
+        <key>default</key>
+        <string>Print with Mass Print</string>
+      </dict>
+      <key>NSMessage</key>
+      <string>runWorkflowAsService</string>
+      <key>NSRequiredContext</key>
+      <dict>
+        <key>NSApplicationIdentifier</key>
+        <string>com.apple.finder</string>
+      </dict>
+      <key>NSSendFileTypes</key>
+      <array>
+        <string>public.item</string>
+      </array>
+    </dict>
+  </array>
 </dict>
 </plist>
 

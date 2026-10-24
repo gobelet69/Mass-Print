@@ -372,6 +372,9 @@ fn validate_finder_action(workflow: &Path) -> Result<(), String> {
     let workflow_contents = fs::read_to_string(document).map_err(|error| error.to_string())?;
     if !info_contents.contains(FINDER_ACTION_IDENTIFIER)
         || !info_contents.contains("<string>BNDL</string>")
+        || !info_contents.contains("<key>NSServices</key>")
+        || !info_contents.contains("<string>runWorkflowAsService</string>")
+        || !info_contents.contains("<string>public.item</string>")
         || !workflow_contents.contains("com.apple.Automator.servicesMenu")
         || !workflow_contents.contains("com.apple.finder")
         || !workflow_contents.contains("/usr/bin/open -b com.massprint.app")
