@@ -93,9 +93,7 @@ In Finder, select files, right-click, and choose **Quick Actions → Print with 
 The action is an Automator service, not a Finder Sync app extension. Depending
 on the macOS version, its checkbox is under **System Settings → Keyboard →
 Keyboard Shortcuts → Services → Files and Folders**. It may therefore not be
-listed in the separate **Finder Extensions** panel. Mass Print distinguishes a
-workflow that was merely copied from one that macOS actually registered and
-offers **Register Finder Action** when registration needs to be repaired.
+listed in the separate **Finder Extensions** panel.
 
 Use the **Remove** button beside **Finder Action ✓** to uninstall it. Developers
 working from a source checkout can alternatively install or remove it with:

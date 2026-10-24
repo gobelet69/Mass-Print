@@ -230,7 +230,6 @@ const FINDER_ACTION_IDENTIFIER: &str = "com.massprint.finder-action";
 struct FinderActionStatus {
     installed: bool,
     valid: bool,
-    registered: bool,
     needs_update: bool,
     path: String,
     message: String,
@@ -254,7 +253,6 @@ fn finder_action_status(app: AppHandle) -> Result<FinderActionStatus, String> {
         return Ok(FinderActionStatus {
             installed: false,
             valid: false,
-            registered: false,
             needs_update: false,
             path,
             message: "The Finder Quick Action is not installed".into(),
@@ -264,26 +262,21 @@ fn finder_action_status(app: AppHandle) -> Result<FinderActionStatus, String> {
     match validate_finder_action(&target) {
         Ok(()) => {
             let needs_update = !finder_action_matches(&source, &target)?;
-            let registered = finder_action_registered();
             Ok(FinderActionStatus {
                 installed: true,
                 valid: true,
-                registered,
                 needs_update,
                 path,
                 message: if needs_update {
                     "The Finder Quick Action should be updated".into()
-                } else if !registered {
-                    "The Finder Quick Action is installed but is not registered with macOS. Click Register Finder Action to repair it".into()
                 } else {
-                    "The Finder Quick Action is installed and registered with macOS".into()
+                    "The Finder Quick Action is installed with macOS Services".into()
                 },
             })
         }
         Err(error) => Ok(FinderActionStatus {
             installed: true,
             valid: false,
-            registered: false,
             needs_update: true,
             path,
             message: error,
@@ -386,20 +379,6 @@ fn validate_finder_action(workflow: &Path) -> Result<(), String> {
         return Err("Finder action metadata or file handoff command is invalid".into());
     }
     Ok(())
-}
-
-fn finder_action_registered() -> bool {
-    Command::new("/System/Library/CoreServices/pbs")
-        .arg("-dump")
-        .stdin(Stdio::null())
-        .output()
-        .map(|output| {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            output.status.success()
-                && (stdout.contains("Print with Mass Print")
-                    || stdout.contains(FINDER_ACTION_IDENTIFIER))
-        })
-        .unwrap_or(false)
 }
 
 fn finder_action_is_owned(workflow: &Path) -> Result<bool, String> {
