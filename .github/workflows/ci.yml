@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: clippy,rustfmt
+      - run: npm ci
+      - run: cargo fmt --all -- --check
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: cargo clippy -p mass-print-core --all-targets -- -D warnings
+      - run: cargo test -p mass-print-core
+      - run: npm run build
+      - run: cargo check --manifest-path src-tauri/Cargo.toml
+      - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/Info.plist"
+      - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/document.wflow"
+      - run: npm run tauri build -- --bundles app

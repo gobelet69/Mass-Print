@@ -1,0 +1,37 @@
+name: macOS Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - run: npm ci
+      - run: cargo test -p mass-print-core
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Mass Print v__VERSION__"
+          releaseBody: |
+            Universal macOS build for Apple Silicon and Intel.
+
+            This build is not notarized. See README.md for installation and security notes.
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin

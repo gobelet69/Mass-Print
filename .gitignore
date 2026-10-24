@@ -1,0 +1,10 @@
+/node_modules/
+/dist/
+/target/
+/src-tauri/target/
+/.rustup/
+/.cargo/
+/.npm-cache/
+.DS_Store
+*.log
+
