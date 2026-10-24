@@ -43,7 +43,9 @@ jobs:
           test -d "$WORKFLOW_PATH"
           plutil -lint "$WORKFLOW_PATH/Contents/Info.plist"
           plutil -lint "$WORKFLOW_PATH/Contents/document.wflow"
-          /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"
+          if ! /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"; then
+            echo "::warning::pbs does not expose Finder Quick Actions on this headless runner"
+          fi
           touch "$TEST_PDF"
           automator -i "$TEST_PDF" "$WORKFLOW_PATH"
           sleep 3
