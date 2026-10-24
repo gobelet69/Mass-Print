@@ -2,13 +2,22 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
+import {
+  containsSupportedPath,
+  destinationForDrop,
+  nextExternalDragState,
+  type ExternalDragEvent,
+} from "./drag-state";
 import type {
   AddReport,
   BatchPrintReport,
   DocumentEntry,
+  FinderActionStatus,
   PrinterInfo,
   PrintSettings,
   QueueSnapshot,
+  SortCriterion,
+  SortDirection,
 } from "./types";
 import "./styles.css";
 
@@ -18,13 +27,22 @@ let snapshot: QueueSnapshot = {
   documents: [],
   totalKnownPages: 0,
   unknownPageCount: 0,
+  activeSort: { criterion: "original", direction: "ascending" },
 };
 let printers: PrinterInfo[] = [];
 let selectedIds = new Set<string>();
 let draggedId: string | null = null;
+let internalDragActive = false;
 let busy = false;
 let dropActive = false;
-let finderActionInstalled = false;
+let ignoreExternalEventsUntil = 0;
+let finderActionStatus: FinderActionStatus = {
+  installed: false,
+  valid: false,
+  needsUpdate: false,
+  path: "",
+  message: "The Finder Quick Action is not installed",
+};
 let notice: { kind: "info" | "error" | "success"; message: string } | null = null;
 
 const settings: PrintSettings = {
@@ -35,6 +53,15 @@ const settings: PrintSettings = {
   paperSize: null,
   landscape: false,
   fitToPage: true,
+};
+
+const sortLabels: Record<SortCriterion, string> = {
+  original: "Original Order",
+  name: "Name",
+  modified: "Modified Date",
+  size: "File Size",
+  pages: "Page Count",
+  fileType: "File Type",
 };
 
 function escapeHtml(value: string): string {
@@ -74,8 +101,8 @@ function renderDocument(document: DocumentEntry, index: number): string {
   };
   return `
     <li class="document-row${selected ? " selected" : ""}" data-id="${document.id}"
-        draggable="true" tabindex="0" role="option" aria-selected="${selected}">
-      <button class="drag-handle" aria-label="Drag ${escapeHtml(document.name)}" tabindex="-1">⠿</button>
+        tabindex="0" role="option" aria-selected="${selected}">
+      <button class="drag-handle" draggable="true" aria-label="Drag ${escapeHtml(document.name)}" title="Drag to reorder">⠿</button>
       <div class="file-icon ${document.extension.toLowerCase()}" aria-hidden="true">${escapeHtml(document.extension.slice(0, 4))}</div>
       <div class="document-copy">
         <div class="document-name" title="${escapeHtml(document.path)}">${escapeHtml(document.name)}</div>
@@ -93,6 +120,43 @@ function renderDocument(document: DocumentEntry, index: number): string {
     </li>`;
 }
 
+function sortDirectionDescription(criterion: SortCriterion, direction: SortDirection): string {
+  const ascending = direction === "ascending";
+  switch (criterion) {
+    case "name": return ascending ? "A to Z" : "Z to A";
+    case "modified": return ascending ? "Oldest first" : "Newest first";
+    case "size": return ascending ? "Smallest first" : "Largest first";
+    case "pages": return ascending ? "Fewest first" : "Most first";
+    case "fileType": return ascending ? "Type A to Z" : "Type Z to A";
+    case "original": return ascending ? "First added first" : "Last added first";
+  }
+}
+
+function renderSortToolbar(): string {
+  const active = snapshot.activeSort;
+  const criterion = active?.criterion ?? "original";
+  const direction = active?.direction ?? "ascending";
+  return `
+    <div class="queue-sortbar">
+      <div class="queue-heading">
+        <strong>${snapshot.documents.length} ${snapshot.documents.length === 1 ? "Document" : "Documents"}</strong>
+        <span>${active ? sortDirectionDescription(criterion, direction) : "Custom Order"}</span>
+      </div>
+      <div class="sort-controls">
+        <label for="sort-criterion">Sort by</label>
+        <select id="sort-criterion" aria-label="Sort documents">
+          ${active ? "" : `<option value="custom" selected>Custom Order</option>`}
+          ${Object.entries(sortLabels).map(([value, label]) => `<option value="${value}" ${active?.criterion === value ? "selected" : ""}>${label}</option>`).join("")}
+        </select>
+        <button id="sort-direction" class="direction-button" ${active ? "" : "disabled"}
+          aria-label="${active ? `Reverse sort. Current direction: ${sortDirectionDescription(criterion, direction)}` : "Direction unavailable for custom order"}"
+          title="${active ? sortDirectionDescription(criterion, direction) : "Custom order"}">
+          ${direction === "ascending" ? "↑" : "↓"}
+        </button>
+      </div>
+    </div>`;
+}
+
 function render(): void {
   const hasDocuments = snapshot.documents.length > 0;
   const pageSummary = snapshot.unknownPageCount
@@ -107,9 +171,11 @@ function render(): void {
           <div><h1>Mass Print</h1><p>Batch printing, in your order.</p></div>
         </div>
         <div class="toolbar-actions">
-          <button id="finder-button" class="secondary" ${finderActionInstalled || busy ? "disabled" : ""}>
-            ${finderActionInstalled ? "Finder Action ✓" : "Install Finder Action"}
+          <button id="finder-button" class="secondary" ${finderActionStatus.valid && !finderActionStatus.needsUpdate || busy ? "disabled" : ""}
+            title="${escapeHtml(finderActionStatus.message)}">
+            ${finderActionStatus.installed ? finderActionStatus.needsUpdate || !finderActionStatus.valid ? "Repair Finder Action" : "Finder Action ✓" : "Install Finder Action"}
           </button>
+          ${finderActionStatus.installed && finderActionStatus.valid ? `<button id="remove-finder-button" class="secondary compact" title="Remove Finder Quick Action">Remove</button>` : ""}
           <button id="clear-button" class="secondary" ${!hasDocuments || busy ? "disabled" : ""}>Clear Queue</button>
           <button id="add-button" class="primary" ${busy ? "disabled" : ""}>＋ Add Files</button>
         </div>
@@ -120,7 +186,8 @@ function render(): void {
       <section class="queue-panel" aria-label="Print queue">
         ${
           hasDocuments
-            ? `<ol class="document-list" role="listbox" aria-multiselectable="true">
+            ? `${renderSortToolbar()}
+              <ol class="document-list" role="listbox" aria-multiselectable="true">
                 ${snapshot.documents.map(renderDocument).join("")}
               </ol>`
             : `<div class="empty-state">
@@ -131,7 +198,7 @@ function render(): void {
                 <p class="format-hint">PDF, PNG, JPEG, TIFF, TXT · Office formats with LibreOffice</p>
               </div>`
         }
-        <div class="drop-overlay" aria-hidden="true"><div>Drop to add to the queue</div></div>
+        <div class="drop-overlay" aria-hidden="true"><div>Drop files to add them to the queue</div></div>
       </section>
 
       <footer class="print-panel">
@@ -169,10 +236,24 @@ function bindEvents(): void {
   document.querySelector("#clear-button")?.addEventListener("click", clearQueue);
   document.querySelector("#print-button")?.addEventListener("click", printAll);
   document.querySelector("#finder-button")?.addEventListener("click", installFinderAction);
+  document.querySelector("#remove-finder-button")?.addEventListener("click", uninstallFinderAction);
   document.querySelector("#cancel-button")?.addEventListener("click", cancelPrinting);
   document.querySelector("#dismiss-notice")?.addEventListener("click", () => {
     notice = null;
     render();
+  });
+
+  const sortCriterion = document.querySelector<HTMLSelectElement>("#sort-criterion");
+  sortCriterion?.addEventListener("change", async () => {
+    if (sortCriterion.value !== "custom") {
+      await sortQueue(sortCriterion.value as SortCriterion, snapshot.activeSort?.direction ?? "ascending");
+    }
+  });
+  document.querySelector("#sort-direction")?.addEventListener("click", async () => {
+    const active = snapshot.activeSort;
+    if (active) {
+      await sortQueue(active.criterion, active.direction === "ascending" ? "descending" : "ascending");
+    }
   });
 
   const printer = document.querySelector<HTMLSelectElement>("#printer");
@@ -192,27 +273,29 @@ function bindEvents(): void {
 
   document.querySelectorAll<HTMLElement>(".document-row").forEach((row) => {
     const id = row.dataset.id!;
+    const handle = row.querySelector<HTMLElement>(".drag-handle");
     row.addEventListener("click", (event) => selectRow(id, event));
-    row.addEventListener("dragstart", () => {
-      draggedId = id;
-      row.classList.add("dragging");
+    handle?.addEventListener("dragstart", (event) => startInternalDrag(event as DragEvent, id, row));
+    handle?.addEventListener("dragend", () => endInternalDrag());
+    row.addEventListener("dragover", (event) => updateInsertionIndicator(event as DragEvent, row));
+    row.addEventListener("dragleave", (event) => {
+      const related = (event as DragEvent).relatedTarget as Node | null;
+      if (!related || !row.contains(related)) clearInsertionIndicator(row);
     });
-    row.addEventListener("dragend", () => {
-      draggedId = null;
-      row.classList.remove("dragging");
-    });
-    row.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      row.classList.add("drop-before");
-    });
-    row.addEventListener("dragleave", () => row.classList.remove("drop-before"));
     row.addEventListener("drop", async (event) => {
       event.preventDefault();
-      row.classList.remove("drop-before");
-      if (draggedId && draggedId !== id) {
-        const destination = snapshot.documents.findIndex((item) => item.id === id);
-        await reorder(draggedId, destination);
+      event.stopPropagation();
+      if (!draggedId || draggedId === id) {
+        endInternalDrag();
+        return;
       }
+      const sourceIndex = snapshot.documents.findIndex((item) => item.id === draggedId);
+      const targetIndex = snapshot.documents.findIndex((item) => item.id === id);
+      const placement = row.dataset.dropPlacement === "after" ? "after" : "before";
+      const destination = destinationForDrop(sourceIndex, targetIndex, placement, snapshot.documents.length);
+      const movedId = draggedId;
+      endInternalDrag();
+      await reorder(movedId, destination);
     });
     row.querySelector(".remove")?.addEventListener("click", async (event) => {
       event.stopPropagation();
@@ -229,6 +312,43 @@ function bindEvents(): void {
   });
 }
 
+function startInternalDrag(event: DragEvent, id: string, row: HTMLElement): void {
+  internalDragActive = true;
+  draggedId = id;
+  setDropActive(false);
+  event.dataTransfer?.setData("text/x-mass-print-document", id);
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+  row.classList.add("dragging");
+}
+
+function updateInsertionIndicator(event: DragEvent, row: HTMLElement): void {
+  if (!internalDragActive || !draggedId) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".document-row.drop-before, .document-row.drop-after")
+    .forEach((item) => clearInsertionIndicator(item as HTMLElement));
+  const bounds = row.getBoundingClientRect();
+  const placement = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+  row.dataset.dropPlacement = placement;
+  row.classList.add(placement === "before" ? "drop-before" : "drop-after");
+}
+
+function clearInsertionIndicator(row: HTMLElement): void {
+  row.classList.remove("drop-before", "drop-after");
+  delete row.dataset.dropPlacement;
+}
+
+function endInternalDrag(): void {
+  internalDragActive = false;
+  draggedId = null;
+  document.querySelectorAll<HTMLElement>(".document-row").forEach((row) => {
+    row.classList.remove("dragging");
+    clearInsertionIndicator(row);
+  });
+  setDropActive(false);
+}
+
 function selectRow(id: string, event: Event): void {
   const mouseEvent = event as MouseEvent;
   if (mouseEvent.metaKey || mouseEvent.ctrlKey) {
@@ -239,6 +359,20 @@ function selectRow(id: string, event: Event): void {
   render();
 }
 
+function setDropActive(active: boolean): void {
+  if (internalDragActive && active) active = false;
+  if (dropActive === active) return;
+  dropActive = active;
+  document.querySelector(".app-shell")?.classList.toggle("drop-active", active);
+  document.querySelector(".queue-panel")?.classList.toggle("external-drag", active);
+}
+
+function resetDragState(): void {
+  ignoreExternalEventsUntil = performance.now() + 250;
+  endInternalDrag();
+  setDropActive(false);
+}
+
 async function refreshQueue(): Promise<void> {
   snapshot = await invoke<QueueSnapshot>("queue_snapshot");
   selectedIds = new Set([...selectedIds].filter((id) => snapshot.documents.some((item) => item.id === id)));
@@ -247,17 +381,22 @@ async function refreshQueue(): Promise<void> {
 
 async function addPaths(paths: string[]): Promise<void> {
   if (paths.length === 0) return;
-  const report = await invoke<AddReport>("add_files", { paths });
-  if (report.rejected.length) {
-    const first = report.rejected[0];
-    notice = {
-      kind: report.added.length ? "info" : "error",
-      message: `${report.rejected.length} file(s) not added. ${first.reason}`,
-    };
-  } else {
-    notice = { kind: "success", message: `${report.added.length} file(s) added to the queue.` };
+  try {
+    const report = await invoke<AddReport>("add_files", { paths });
+    if (report.rejected.length) {
+      const first = report.rejected[0];
+      notice = {
+        kind: report.added.length ? "info" : "error",
+        message: `${report.rejected.length} file(s) not added. ${first.reason}`,
+      };
+    } else {
+      notice = { kind: "success", message: `${report.added.length} file(s) added to the queue.` };
+    }
+    await refreshQueue();
+  } catch (error) {
+    notice = { kind: "error", message: `Files could not be added: ${String(error)}` };
+    render();
   }
-  await refreshQueue();
 }
 
 async function chooseFiles(): Promise<void> {
@@ -281,6 +420,7 @@ async function clearQueue(): Promise<void> {
   await invoke("clear_queue");
   selectedIds.clear();
   notice = null;
+  resetDragState();
   await refreshQueue();
 }
 
@@ -294,10 +434,16 @@ async function moveDocument(id: string, delta: number): Promise<void> {
   await refreshQueue();
 }
 
+async function sortQueue(criterion: SortCriterion, direction: SortDirection): Promise<void> {
+  await invoke("sort_queue", { criterion, direction });
+  await refreshQueue();
+}
+
 async function printAll(): Promise<void> {
   if (!settings.printer || snapshot.documents.length === 0) return;
   busy = true;
   notice = null;
+  resetDragState();
   render();
   try {
     const report = await invoke<BatchPrintReport>("print_all", { settings });
@@ -336,19 +482,25 @@ async function loadPrinters(): Promise<void> {
 
 async function loadFinderActionStatus(): Promise<void> {
   try {
-    finderActionInstalled = await invoke<boolean>("finder_action_installed");
+    finderActionStatus = await invoke<FinderActionStatus>("finder_action_status");
   } catch {
-    finderActionInstalled = false;
+    finderActionStatus = {
+      installed: false,
+      valid: false,
+      needsUpdate: false,
+      path: "",
+      message: "Finder Quick Action status is unavailable",
+    };
   }
 }
 
 async function installFinderAction(): Promise<void> {
   try {
     await invoke("install_finder_action");
-    finderActionInstalled = true;
+    await loadFinderActionStatus();
     notice = {
       kind: "success",
-      message: "Finder action installed. Select files in Finder, then use Quick Actions → Print with Mass Print.",
+      message: "Finder action installed and Finder refreshed. If it is hidden, enable it in System Settings → General → Login Items & Extensions → Finder Extensions.",
     };
   } catch (error) {
     notice = { kind: "error", message: String(error) };
@@ -356,8 +508,21 @@ async function installFinderAction(): Promise<void> {
   render();
 }
 
+async function uninstallFinderAction(): Promise<void> {
+  try {
+    await invoke("uninstall_finder_action");
+    await loadFinderActionStatus();
+    notice = { kind: "success", message: "The Mass Print Finder action was removed." };
+  } catch (error) {
+    notice = { kind: "error", message: String(error) };
+  }
+  render();
+}
+
 document.addEventListener("keydown", async (event) => {
-  if (event.metaKey && event.key.toLowerCase() === "o") {
+  if (event.key === "Escape") {
+    resetDragState();
+  } else if (event.metaKey && event.key.toLowerCase() === "o") {
     event.preventDefault();
     await chooseFiles();
   } else if (event.metaKey && event.key.toLowerCase() === "p") {
@@ -374,20 +539,32 @@ document.addEventListener("keydown", async (event) => {
   }
 });
 
+window.addEventListener("blur", resetDragState);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) resetDragState();
+});
+document.addEventListener("dragend", resetDragState);
+
 getCurrentWebview().onDragDropEvent(async (event) => {
-  if (event.payload.type === "enter" || event.payload.type === "over") {
-    dropActive = true;
-    render();
-  } else if (event.payload.type === "leave") {
-    dropActive = false;
-    render();
-  } else if (event.payload.type === "drop") {
-    dropActive = false;
-    await addPaths(event.payload.paths);
+  const payload = event.payload as ExternalDragEvent;
+  if (performance.now() < ignoreExternalEventsUntil && (payload.type === "enter" || payload.type === "over")) {
+    setDropActive(false);
+    return;
+  }
+  setDropActive(nextExternalDragState(dropActive, payload, internalDragActive));
+  if (payload.type === "drop") {
+    ignoreExternalEventsUntil = performance.now() + 250;
+    setDropActive(false);
+    try {
+      if (containsSupportedPath(payload.paths)) await addPaths(payload.paths);
+    } finally {
+      setDropActive(false);
+    }
   }
 });
 
 void listen("queue-changed", () => {
+  resetDragState();
   void refreshQueue();
 });
 
@@ -401,4 +578,3 @@ initialize().catch((error) => {
   notice = { kind: "error", message: `Mass Print could not start: ${String(error)}` };
   render();
 });
-

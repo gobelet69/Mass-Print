@@ -18,6 +18,7 @@ jobs:
         with:
           components: clippy,rustfmt
       - run: npm ci
+      - run: npm test
       - run: cargo fmt --all -- --check
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy -p mass-print-core --all-targets -- -D warnings
@@ -26,4 +27,24 @@ jobs:
       - run: cargo check --manifest-path src-tauri/Cargo.toml
       - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/Info.plist"
       - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/document.wflow"
+      - run: grep -F '/usr/bin/open -b com.massprint.app -- "$@"' "finder/Print with Mass Print.workflow/Contents/document.wflow"
       - run: npm run tauri build -- --bundles app
+      - name: Verify Finder Quick Action registration and cold launch
+        run: |
+          set -euo pipefail
+          APP_PATH="src-tauri/target/release/bundle/macos/Mass Print.app"
+          WORKFLOW_PATH="$HOME/Library/Services/Print with Mass Print.workflow"
+          TEST_PDF="$RUNNER_TEMP/Résumé chapter 1.pdf"
+          test -d "$APP_PATH"
+          open "$APP_PATH"
+          sleep 3
+          osascript -e 'tell application id "com.massprint.app" to quit' || true
+          ./scripts/install-finder-action.sh
+          test -d "$WORKFLOW_PATH"
+          plutil -lint "$WORKFLOW_PATH/Contents/Info.plist"
+          plutil -lint "$WORKFLOW_PATH/Contents/document.wflow"
+          /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"
+          touch "$TEST_PDF"
+          automator -i "$TEST_PDF" "$WORKFLOW_PATH"
+          sleep 3
+          pgrep -f '/Mass Print.app/Contents/MacOS/mass-print'

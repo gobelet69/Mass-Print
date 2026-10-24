@@ -10,5 +10,6 @@ lopdf.workspace = true
 serde.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+unicode-normalization.workspace = true
 uuid.workspace = true
 

@@ -10,7 +10,7 @@
     <dict>
       <key>action</key>
       <dict>
-        <key>AMAccepts</key><dict><key>Container</key><string>List</string><key>Optional</key><true/><key>Types</key><array><string>com.apple.cocoa.path</string></array></dict>
+        <key>AMAccepts</key><dict><key>Container</key><string>List</string><key>Optional</key><false/><key>Types</key><array><string>com.apple.cocoa.path</string></array></dict>
         <key>AMActionVersion</key><string>2.0.3</string>
         <key>AMApplication</key><array><string>Automator</string></array>
         <key>AMParameterProperties</key><dict/>
@@ -19,7 +19,7 @@
         <key>ActionName</key><string>Run Shell Script</string>
         <key>ActionParameters</key>
         <dict>
-          <key>COMMAND_STRING</key><string>open -a "Mass Print" "$@"</string>
+          <key>COMMAND_STRING</key><string>/usr/bin/open -b com.massprint.app -- "$@"</string>
           <key>CheckedForUserDefaultShell</key><true/>
           <key>inputMethod</key><integer>1</integer>
           <key>shell</key><string>/bin/zsh</string>

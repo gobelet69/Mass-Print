@@ -65,18 +65,41 @@ The project does not include a signing identity. Unsigned local builds can be ru
 
 Jobs are submitted one at a time in queue order. **Cancel** prevents further submissions and asks CUPS to cancel only the job identifiers submitted by the current batch.
 
+### Ordering documents
+
+Drag a row by its visible handle to create a custom print order. The blue
+insertion line shows the exact destination, and the queue switches to **Custom
+Order** so it never snaps back to a previous sort.
+
+The compact toolbar above the queue can sort by natural filename, modification
+date, file size, page count, file type, or original insertion order. Natural
+filename sorting places `Chapter 2.pdf` before `Chapter 10.pdf`. Files with
+unknown dates or page counts stay at the end. When a predefined sort is active,
+newly added files are placed by that sort; in Custom Order they are appended.
+
 ## Finder Quick Action
 
 After placing `Mass Print.app` in `/Applications`, launch it and select
 **Install Finder Action** in the toolbar. The Quick Action is bundled inside
 the application; downloading the source code or using Terminal is not required.
 
+Mass Print validates the workflow with `plutil`, installs it atomically at
+`~/Library/Services/Print with Mass Print.workflow`, refreshes the macOS
+Services database, and restarts Finder. Re-running the installer repairs or
+updates Mass Print's own workflow without creating duplicates.
+
 In Finder, select files, right-click, and choose **Quick Actions → Print with Mass Print**. Depending on macOS settings, it may appear under **Services**. The action passes each selected path to Mass Print and opens or focuses its existing window. It never starts printing.
 
-Developers working from a source checkout can alternatively install it with
-`./scripts/install-finder-action.sh`. Remove it with:
+If the action remains hidden, enable **Print with Mass Print** in either Finder
+**Settings → Extensions** or macOS **System Settings → General → Login Items &
+Extensions → Finder Extensions**. macOS controls this user approval; Mass Print
+does not bypass it.
+
+Use the **Remove** button beside **Finder Action ✓** to uninstall it. Developers
+working from a source checkout can alternatively install or remove it with:
 
 ```sh
+./scripts/install-finder-action.sh
 ./scripts/uninstall-finder-action.sh
 ```
 

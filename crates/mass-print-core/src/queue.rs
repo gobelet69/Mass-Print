@@ -1,14 +1,35 @@
 use crate::{DocumentEntry, DocumentStatus};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 use uuid::Uuid;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SortCriterion {
+    Original,
+    Name,
+    Modified,
+    Size,
+    Pages,
+    FileType,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentQueue {
     documents: Vec<DocumentEntry>,
+    next_insertion_sequence: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -76,7 +97,9 @@ impl DocumentQueue {
             }
 
             match DocumentEntry::inspect(normalized.clone()) {
-                Ok(entry) => {
+                Ok(mut entry) => {
+                    entry.insertion_sequence = self.next_insertion_sequence;
+                    self.next_insertion_sequence = self.next_insertion_sequence.saturating_add(1);
                     known.insert(normalized);
                     self.documents.push(entry.clone());
                     report.added.push(entry);
@@ -147,6 +170,157 @@ impl DocumentQueue {
         document.status_message = message;
         Ok(())
     }
+
+    pub fn sort(&mut self, criterion: SortCriterion, direction: SortDirection) {
+        self.documents
+            .sort_by(|left, right| compare_documents(left, right, criterion, direction));
+    }
+}
+
+fn compare_documents(
+    left: &DocumentEntry,
+    right: &DocumentEntry,
+    criterion: SortCriterion,
+    direction: SortDirection,
+) -> Ordering {
+    let primary = match criterion {
+        SortCriterion::Original => left.insertion_sequence.cmp(&right.insertion_sequence),
+        SortCriterion::Name => natural_compare(&left.name, &right.name),
+        SortCriterion::Modified => {
+            return compare_optional(
+                left.modified_at_ms,
+                right.modified_at_ms,
+                left,
+                right,
+                direction,
+            );
+        }
+        SortCriterion::Size => left.size_bytes.cmp(&right.size_bytes),
+        SortCriterion::Pages => {
+            return compare_optional(left.page_count, right.page_count, left, right, direction);
+        }
+        SortCriterion::FileType => left
+            .extension
+            .to_lowercase()
+            .cmp(&right.extension.to_lowercase()),
+    };
+
+    apply_direction(primary, direction)
+        .then_with(|| natural_compare(&left.name, &right.name))
+        .then_with(|| left.insertion_sequence.cmp(&right.insertion_sequence))
+}
+
+fn compare_optional<T: Ord + Copy>(
+    left_value: Option<T>,
+    right_value: Option<T>,
+    left: &DocumentEntry,
+    right: &DocumentEntry,
+    direction: SortDirection,
+) -> Ordering {
+    match (left_value, right_value) {
+        (Some(left_value), Some(right_value)) => {
+            apply_direction(left_value.cmp(&right_value), direction)
+                .then_with(|| natural_compare(&left.name, &right.name))
+                .then_with(|| left.insertion_sequence.cmp(&right.insertion_sequence))
+        }
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => natural_compare(&left.name, &right.name)
+            .then_with(|| left.insertion_sequence.cmp(&right.insertion_sequence)),
+    }
+}
+
+fn apply_direction(ordering: Ordering, direction: SortDirection) -> Ordering {
+    match direction {
+        SortDirection::Ascending => ordering,
+        SortDirection::Descending => ordering.reverse(),
+    }
+}
+
+fn natural_compare(left: &str, right: &str) -> Ordering {
+    let left = normalized_sort_name(left);
+    let right = normalized_sort_name(right);
+    let left_segments = natural_segments(&left);
+    let right_segments = natural_segments(&right);
+
+    for (left_segment, right_segment) in left_segments.iter().zip(&right_segments) {
+        let ordering = match (left_segment, right_segment) {
+            (NaturalSegment::Number(left), NaturalSegment::Number(right)) => {
+                compare_number_segments(left, right)
+            }
+            (NaturalSegment::Text(left), NaturalSegment::Text(right)) => left.cmp(right),
+            (NaturalSegment::Number(_), NaturalSegment::Text(_)) => Ordering::Less,
+            (NaturalSegment::Text(_), NaturalSegment::Number(_)) => Ordering::Greater,
+        };
+        if ordering != Ordering::Equal {
+            return ordering;
+        }
+    }
+    left_segments.len().cmp(&right_segments.len())
+}
+
+fn normalized_sort_name(value: &str) -> String {
+    value
+        .nfkd()
+        .filter(|character| !is_combining_mark(*character))
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum NaturalSegment {
+    Number(String),
+    Text(String),
+}
+
+fn natural_segments(value: &str) -> Vec<NaturalSegment> {
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    let mut digits = None;
+
+    for character in value.chars() {
+        let is_digit = character.is_ascii_digit();
+        if digits.is_some_and(|current_is_digit| current_is_digit != is_digit) {
+            push_segment(
+                &mut segments,
+                std::mem::take(&mut current),
+                digits.unwrap_or(false),
+            );
+        }
+        digits = Some(is_digit);
+        current.push(character);
+    }
+    if !current.is_empty() {
+        push_segment(&mut segments, current, digits.unwrap_or(false));
+    }
+    segments
+}
+
+fn push_segment(segments: &mut Vec<NaturalSegment>, value: String, digits: bool) {
+    segments.push(if digits {
+        NaturalSegment::Number(value)
+    } else {
+        NaturalSegment::Text(value)
+    });
+}
+
+fn compare_number_segments(left: &str, right: &str) -> Ordering {
+    let left_trimmed = left.trim_start_matches('0');
+    let right_trimmed = right.trim_start_matches('0');
+    let left_value = if left_trimmed.is_empty() {
+        "0"
+    } else {
+        left_trimmed
+    };
+    let right_value = if right_trimmed.is_empty() {
+        "0"
+    } else {
+        right_trimmed
+    };
+    left_value
+        .len()
+        .cmp(&right_value.len())
+        .then_with(|| left_value.cmp(right_value))
 }
 
 fn normalized_path(path: &Path) -> PathBuf {
@@ -279,5 +453,113 @@ mod tests {
         let mut queue = DocumentQueue::default();
         let report = queue.add_paths([path]);
         assert_eq!(report.added[0].name, "Résumé – final [approved] #1.txt");
+    }
+
+    fn names(queue: &DocumentQueue) -> Vec<&str> {
+        queue
+            .documents()
+            .iter()
+            .map(|item| item.name.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn natural_name_sort_handles_numbers_case_and_accents() {
+        let (_directory, mut queue) = queue_with_files(&[
+            "Chapter 10.txt",
+            "résumé.txt",
+            "Chapter 2.txt",
+            "Resume.txt",
+            "Chapter 1.txt",
+        ]);
+        queue.sort(SortCriterion::Name, SortDirection::Ascending);
+        assert_eq!(
+            names(&queue),
+            [
+                "Chapter 1.txt",
+                "Chapter 2.txt",
+                "Chapter 10.txt",
+                "résumé.txt",
+                "Resume.txt",
+            ]
+        );
+        queue.sort(SortCriterion::Name, SortDirection::Descending);
+        assert_eq!(
+            &names(&queue)[..3],
+            ["résumé.txt", "Resume.txt", "Chapter 10.txt"]
+        );
+    }
+
+    #[test]
+    fn sorts_size_type_pages_and_restores_insertion_order() {
+        let directory = tempdir().unwrap();
+        let small = directory.path().join("small.txt");
+        let large = directory.path().join("large.txt");
+        let office = directory.path().join("sheet.xlsx");
+        fs::write(&small, "one line\n").unwrap();
+        fs::write(&large, "line\n".repeat(120)).unwrap();
+        fs::write(&office, "unknown pages").unwrap();
+        let mut queue = DocumentQueue::default();
+        queue.add_paths([&large, &office, &small]);
+
+        queue.sort(SortCriterion::Size, SortDirection::Ascending);
+        assert_eq!(names(&queue)[0], "small.txt");
+        queue.sort(SortCriterion::Pages, SortDirection::Descending);
+        assert_eq!(names(&queue), ["large.txt", "small.txt", "sheet.xlsx"]);
+        queue.sort(SortCriterion::FileType, SortDirection::Ascending);
+        assert_eq!(names(&queue), ["large.txt", "small.txt", "sheet.xlsx"]);
+        queue.sort(SortCriterion::Original, SortDirection::Ascending);
+        assert_eq!(names(&queue), ["large.txt", "sheet.xlsx", "small.txt"]);
+    }
+
+    #[test]
+    fn sorting_preserves_ids_metadata_counts_and_print_order() {
+        let (_directory, mut queue) = queue_with_files(&["Document 10.txt", "Document 2.txt"]);
+        let ids: HashSet<_> = queue.documents().iter().map(|item| item.id).collect();
+        let pages = queue.total_known_pages();
+        queue.sort(SortCriterion::Name, SortDirection::Ascending);
+        assert_eq!(names(&queue), ["Document 2.txt", "Document 10.txt"]);
+        assert_eq!(
+            queue
+                .documents()
+                .iter()
+                .map(|item| item.id)
+                .collect::<HashSet<_>>(),
+            ids
+        );
+        assert_eq!(queue.total_known_pages(), pages);
+    }
+
+    #[test]
+    fn sorts_real_modification_metadata_and_keeps_missing_values_last() {
+        let (_directory, mut queue) = queue_with_files(&["new.txt", "unknown.txt", "old.txt"]);
+        queue.documents[0].modified_at_ms = Some(300);
+        queue.documents[1].modified_at_ms = None;
+        queue.documents[2].modified_at_ms = Some(100);
+
+        queue.sort(SortCriterion::Modified, SortDirection::Ascending);
+        assert_eq!(names(&queue), ["old.txt", "new.txt", "unknown.txt"]);
+        queue.sort(SortCriterion::Modified, SortDirection::Descending);
+        assert_eq!(names(&queue), ["new.txt", "old.txt", "unknown.txt"]);
+    }
+
+    #[test]
+    fn new_files_can_be_resorted_without_disturbing_existing_entries() {
+        let directory = tempdir().unwrap();
+        for name in ["Chapter 10.txt", "Chapter 1.txt", "Chapter 2.txt"] {
+            fs::write(directory.path().join(name), name).unwrap();
+        }
+        let mut queue = DocumentQueue::default();
+        queue.add_paths([
+            directory.path().join("Chapter 10.txt"),
+            directory.path().join("Chapter 1.txt"),
+        ]);
+        queue.sort(SortCriterion::Name, SortDirection::Ascending);
+        queue.add_paths([directory.path().join("Chapter 2.txt")]);
+        queue.sort(SortCriterion::Name, SortDirection::Ascending);
+        assert_eq!(
+            names(&queue),
+            ["Chapter 1.txt", "Chapter 2.txt", "Chapter 10.txt"]
+        );
     }
 }

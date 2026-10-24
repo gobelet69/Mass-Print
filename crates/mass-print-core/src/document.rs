@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -89,6 +90,8 @@ pub struct DocumentEntry {
     pub name: String,
     pub extension: String,
     pub size_bytes: u64,
+    pub modified_at_ms: Option<u64>,
+    pub insertion_sequence: u64,
     pub page_count: Option<u32>,
     pub format: DocumentFormat,
     pub status: DocumentStatus,
@@ -124,6 +127,12 @@ impl DocumentEntry {
             name,
             extension,
             size_bytes: metadata.len(),
+            modified_at_ms: metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+                .map(|duration| duration.as_millis() as u64),
+            insertion_sequence: 0,
             page_count,
             format,
             status: if format.needs_office_conversion() {

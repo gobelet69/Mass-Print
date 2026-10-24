@@ -14,4 +14,4 @@ pub use printing::{
     BatchPrintReport, JobOutcome, LpPrintBackend, PrintBackend, PrintError, PrintSettings,
     PrinterInfo,
 };
-pub use queue::{AddFailure, AddReport, DocumentQueue, QueueError};
+pub use queue::{AddFailure, AddReport, DocumentQueue, QueueError, SortCriterion, SortDirection};
