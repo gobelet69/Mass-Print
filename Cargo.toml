@@ -1,6 +1,5 @@
 [workspace]
 members = ["crates/mass-print-core", "crates/mass-print-ffi"]
-exclude = ["src-tauri"]
 resolver = "2"
 
 [workspace.package]

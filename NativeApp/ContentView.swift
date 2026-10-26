@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @ObservedObject var model: AppModel
     @State private var externalDropTargeted = false
+    @State private var insertionTargetID: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,7 +78,10 @@ struct ContentView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(model.snapshot.documents) { document in
-                            DocumentRow(document: document) {
+                            DocumentRow(
+                                document: document,
+                                showsInsertionIndicator: insertionTargetID == document.id
+                            ) {
                                 model.remove(id: document.id)
                             }
                             .draggable(document.id) {
@@ -89,7 +93,9 @@ struct ContentView: View {
                                 guard let id = ids.first else { return false }
                                 model.reorder(id: id, before: document.id)
                                 return true
-                            } isTargeted: { _ in }
+                            } isTargeted: { targeted in
+                                insertionTargetID = targeted ? document.id : nil
+                            }
                             Divider().padding(.leading, 52)
                         }
                         Color.clear
@@ -212,6 +218,7 @@ struct ContentView: View {
 
 private struct DocumentRow: View {
     let document: DocumentEntry
+    var showsInsertionIndicator = false
     let remove: () -> Void
 
     var body: some View {
@@ -241,6 +248,14 @@ private struct DocumentRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .contentShape(Rectangle())
+        .overlay(alignment: .top) {
+            if showsInsertionIndicator {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(height: 2)
+                    .padding(.horizontal, 8)
+            }
+        }
     }
 
     private var metadata: String {

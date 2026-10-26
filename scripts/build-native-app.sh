@@ -15,7 +15,7 @@ done
 rm -rf -- "$APP_PATH"
 mkdir -p -- "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources" "$BUILD_DIR/bin"
 cp "$ROOT_DIR/NativeApp/Info.plist" "$APP_PATH/Contents/Info.plist"
-cp "$ROOT_DIR/src-tauri/icons/icon.icns" "$APP_PATH/Contents/Resources/icon.icns"
+cp "$ROOT_DIR/NativeApp/Resources/icon.icns" "$APP_PATH/Contents/Resources/icon.icns"
 
 for architecture in arm64 x86_64; do
   if [[ "$architecture" == arm64 ]]; then
