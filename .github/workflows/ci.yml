@@ -6,48 +6,56 @@ on:
   pull_request:
 
 jobs:
-  macos:
+  macos-native:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
       - uses: dtolnay/rust-toolchain@1.90.0
         with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
           components: clippy,rustfmt
-      - run: npm ci
-      - run: npm test
       - run: cargo fmt --all -- --check
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - run: cargo clippy -p mass-print-core --all-targets -- -D warnings
-      - run: cargo test -p mass-print-core
-      - run: npm run build
-      - run: cargo check --manifest-path src-tauri/Cargo.toml
-      - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/Info.plist"
-      - run: plutil -lint "finder/Print with Mass Print.workflow/Contents/document.wflow"
-      - run: test "$(plutil -extract CFBundlePackageType raw 'finder/Print with Mass Print.workflow/Contents/Info.plist')" = "BNDL"
-      - run: test "$(plutil -extract NSServices.0.NSMessage raw 'finder/Print with Mass Print.workflow/Contents/Info.plist')" = "runWorkflowAsService"
-      - run: test "$(plutil -extract NSServices.0.NSSendFileTypes.0 raw 'finder/Print with Mass Print.workflow/Contents/Info.plist')" = "public.item"
-      - run: grep -F '/usr/bin/open -b com.massprint.app -- "$@"' "finder/Print with Mass Print.workflow/Contents/document.wflow"
-      - run: npm run tauri build -- --bundles app
-      - name: Verify Finder Quick Action registration and cold launch
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: plutil -lint NativeApp/Info.plist
+      - run: test "$(plutil -extract CFBundlePackageType raw NativeApp/Info.plist)" = "APPL"
+      - run: test "$(plutil -extract NSServices.0.NSMessage raw NativeApp/Info.plist)" = "queueFiles"
+      - run: test "$(plutil -extract NSServices.0.NSSendFileTypes.0 raw NativeApp/Info.plist)" = "public.item"
+      - name: Build universal native macOS application
+        run: ./scripts/build-native-app.sh
+      - name: Verify native bundle and Finder service
         run: |
           set -euo pipefail
-          APP_PATH="src-tauri/target/release/bundle/macos/Mass Print.app"
-          WORKFLOW_PATH="$HOME/Library/Services/Print with Mass Print.workflow"
+          APP_PATH="$PWD/build/native/Mass Print.app"
+          EXECUTABLE="$APP_PATH/Contents/MacOS/Mass Print"
           TEST_PDF="$RUNNER_TEMP/Résumé chapter 1.pdf"
+          LEGACY_WORKFLOW="$HOME/Library/Services/Print with Mass Print.workflow"
           test -d "$APP_PATH"
-          open "$APP_PATH"
-          sleep 3
-          osascript -e 'tell application id "com.massprint.app" to quit' || true
+          file "$EXECUTABLE" | grep -F "arm64"
+          file "$EXECUTABLE" | grep -F "x86_64"
           ./scripts/install-finder-action.sh
-          test -d "$WORKFLOW_PATH"
-          plutil -lint "$WORKFLOW_PATH/Contents/Info.plist"
-          plutil -lint "$WORKFLOW_PATH/Contents/document.wflow"
-          /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"
+          test -d "$LEGACY_WORKFLOW"
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_PATH"
           touch "$TEST_PDF"
-          automator -i "$TEST_PDF" "$WORKFLOW_PATH"
-          sleep 3
-          pgrep -f '/Mass Print.app/Contents/MacOS/mass-print'
+          open "$APP_PATH"
+          sleep 4
+          test ! -e "$LEGACY_WORKFLOW"
+          /System/Library/CoreServices/pbs -dump | grep -F "Print with Mass Print"
+          osascript -e 'tell application id "com.massprint.app" to quit'
+          sleep 2
+          TEST_PDF="$TEST_PDF" xcrun swift - <<'SWIFT'
+          import AppKit
+          import Foundation
+
+          let pasteboard = NSPasteboard(name: NSPasteboard.Name("MassPrintCITest"))
+          pasteboard.clearContents()
+          pasteboard.writeObjects([NSURL(fileURLWithPath: ProcessInfo.processInfo.environment["TEST_PDF"]!)])
+          guard NSPerformService("Print with Mass Print", pasteboard) else {
+              fputs("Finder service invocation failed\n", stderr)
+              exit(1)
+          }
+          SWIFT
+          sleep 4
+          pgrep -f '/Mass Print.app/Contents/MacOS/Mass Print'
+      - name: Package release artifacts
+        run: ./scripts/package-native-release.sh

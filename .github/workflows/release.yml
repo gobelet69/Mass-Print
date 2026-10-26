@@ -1,4 +1,4 @@
-name: macOS Release
+name: macOS Native Release
 
 on:
   push:
@@ -13,25 +13,20 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
       - uses: dtolnay/rust-toolchain@1.90.0
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - run: npm ci
-      - run: cargo test -p mass-print-core
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: cargo test --workspace
+      - run: ./scripts/build-native-app.sh
+      - run: ./scripts/package-native-release.sh
+      - uses: softprops/action-gh-release@v2
         with:
-          tagName: v__VERSION__
-          releaseName: "Mass Print v__VERSION__"
-          releaseBody: |
-            Universal macOS build for Apple Silicon and Intel.
+          name: "Mass Print ${{ github.ref_name }}"
+          body: |
+            Fully native SwiftUI/AppKit macOS application with its tested Rust printing engine.
 
-            This build is not notarized. See README.md for installation and security notes.
-          releaseDraft: false
-          prerelease: false
-          args: --target universal-apple-darwin
+            Universal build for Apple Silicon and Intel. No WebView or Tauri runtime.
+
+            This build is ad-hoc signed and not notarized.
+          files: dist-native/*
+          fail_on_unmatched_files: true
