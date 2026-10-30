@@ -6,6 +6,7 @@ struct ContentView: View {
     @ObservedObject var model: AppModel
     @State private var externalDropTargeted = false
     @State private var insertionTargetID: String?
+    @State private var endDropTargeted = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +29,11 @@ struct ContentView: View {
             loadDroppedFiles(providers)
             return true
         }
+        .onOpenURL { url in
+            guard url.isFileURL else { return }
+            FileIngress.shared.receive([url.path])
+        }
+        .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
     }
 
     private var toolbar: some View {
@@ -90,6 +96,7 @@ struct ContentView: View {
                                     .opacity(0.85)
                             }
                             .dropDestination(for: String.self) { ids, _ in
+                                defer { insertionTargetID = nil }
                                 guard let id = ids.first else { return false }
                                 model.reorder(id: id, before: document.id)
                                 return true
@@ -101,10 +108,27 @@ struct ContentView: View {
                         Color.clear
                             .frame(height: 28)
                             .contentShape(Rectangle())
+                            .overlay(alignment: .top) {
+                                if endDropTargeted {
+                                    Rectangle()
+                                        .fill(Color.accentColor)
+                                        .frame(height: 2)
+                                        .padding(.horizontal, 8)
+                                }
+                            }
                             .dropDestination(for: String.self) { ids, _ in
+                                defer {
+                                    insertionTargetID = nil
+                                    endDropTargeted = false
+                                }
                                 guard let id = ids.first else { return false }
                                 model.reorder(id: id, before: nil)
                                 return true
+                            } isTargeted: { targeted in
+                                endDropTargeted = targeted
+                                if targeted {
+                                    insertionTargetID = nil
+                                }
                             }
                     }
                 }
@@ -120,7 +144,7 @@ struct ContentView: View {
     private var sortBar: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(model.snapshot.documents.count) Documents").font(.headline)
+                Text(documentCountTitle).font(.headline)
                 Text(orderDescription).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
@@ -136,9 +160,11 @@ struct ContentView: View {
             .labelsHidden()
             .frame(width: 175)
             Button(action: model.reverseSort) {
-                Image(systemName: model.snapshot.activeSort?.direction == .descending ? "arrow.down" : "arrow.up")
+                Label(reverseSortButtonLabel, systemImage: "arrow.up.arrow.down")
+                    .labelStyle(.iconOnly)
             }
-            .help("Reverse sort direction")
+            .accessibilityLabel(reverseSortButtonLabel)
+            .help(reverseSortButtonLabel)
             .disabled(model.snapshot.activeSort == nil)
         }
         .padding(.horizontal, 14)
@@ -148,7 +174,7 @@ struct ContentView: View {
     private var printControls: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(model.snapshot.documents.count) documents").font(.headline)
+                Text(documentCountSummary).font(.headline)
                 Text(pageSummary).foregroundStyle(.secondary)
             }
             .frame(width: 150, alignment: .leading)
@@ -165,12 +191,16 @@ struct ContentView: View {
             Toggle("Two-sided", isOn: $model.duplex)
             Spacer()
             if model.isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Preparing print jobs")
                 Button("Cancel", action: model.cancelPrinting)
+            } else {
+                Button("Print All", action: model.printAll)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(model.snapshot.documents.isEmpty || model.selectedPrinter.isEmpty)
             }
-            Button("Print All", action: model.printAll)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(model.snapshot.documents.isEmpty || model.selectedPrinter.isEmpty || model.isBusy)
         }
         .padding(20)
     }
@@ -187,14 +217,38 @@ struct ContentView: View {
 
     private var orderDescription: String {
         guard let sort = model.snapshot.activeSort else { return "Custom Order" }
-        return "\(sort.criterion.title) · \(sort.direction == .ascending ? "Ascending" : "Descending")"
+        switch (sort.criterion, sort.direction) {
+        case (.original, .ascending): return "Original order"
+        case (.original, .descending): return "Original order · Reversed"
+        case (.name, .ascending): return "Name · A–Z"
+        case (.name, .descending): return "Name · Z–A"
+        case (_, .ascending): return "\(sort.criterion.title) · Ascending"
+        case (_, .descending): return "\(sort.criterion.title) · Descending"
+        }
+    }
+
+    private var reverseSortButtonLabel: String {
+        guard let sort = model.snapshot.activeSort else { return "Reverse sort direction" }
+        return sort.direction == .ascending ? "Sort descending" : "Sort ascending"
     }
 
     private var pageSummary: String {
+        let pageCount = Int(model.snapshot.totalKnownPages)
+        let knownPages = pageCount.formatted()
         if model.snapshot.unknownPageCount == 0 {
-            return "\(model.snapshot.totalKnownPages) pages"
+            return "\(knownPages) \(pageCount == 1 ? "page" : "pages")"
         }
-        return "\(model.snapshot.totalKnownPages) known · \(model.snapshot.unknownPageCount) unknown"
+        return "\(knownPages) known · \(model.snapshot.unknownPageCount.formatted()) unknown"
+    }
+
+    private var documentCountTitle: String {
+        let count = model.snapshot.documents.count
+        return "\(count.formatted()) \(count == 1 ? "Document" : "Documents")"
+    }
+
+    private var documentCountSummary: String {
+        let count = model.snapshot.documents.count
+        return "\(count.formatted()) \(count == 1 ? "document" : "documents")"
     }
 
     private func loadDroppedFiles(_ providers: [NSItemProvider]) {

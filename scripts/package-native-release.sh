@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR=${0:A:h:h}
-APP_PATH="$ROOT_DIR/build/native/Mass Print.app"
+APP_LINK="$ROOT_DIR/build/native/Mass Print.app"
+APP_PATH=${APP_LINK:A}
 DIST_DIR="$ROOT_DIR/dist-native"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")
 

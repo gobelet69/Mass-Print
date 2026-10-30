@@ -1,0 +1,48 @@
+Mass Print final performance verification — 2026-10-29
+
+Safety
+- Synthetic documents only.
+- In-process fake print destination only.
+- Real print jobs submitted: 0.
+- Active CUPS jobs after verification: 0.
+
+Release-mode bridge probe, five runs (milliseconds)
+run  add       snapshot  sort_asc  sort_desc  reorder
+1    178.475   9.283     2.729     2.585      0.013
+2    160.331   9.134     2.638     2.565      0.013
+3    160.507   9.113     2.678     2.575      0.014
+4    164.281   9.130     2.607     2.561      0.013
+5    163.782   9.569     2.674     2.637      0.013
+median 163.782 9.134     2.674     2.575      0.013
+
+Command
+cargo test --release -p mass-print-ffi performance_probe_large_queue_bridge_operations -- --ignored --nocapture
+
+Safe preparation probe
+- 25 synthetic text documents: 2,431.140 ms
+- submitted_jobs=0
+- Command: cargo test --release -p mass-print-ffi performance_probe_safe_document_preparation -- --ignored --nocapture
+
+Actual application, 3,000-file external handoff
+- Synthetic fixture: 3,000 one-line text files under /tmp; removed after the run.
+- Launch Services open call returned after 1,864 ms.
+- Accessibility UI confirmed: Added 3,000 documents; 3,000 documents; 3,000 pages.
+- Observed RSS peak: 152,128 KiB.
+- CPU/RSS samples (percent/KiB):
+  52.4/131040, 31.5/152128, 4.6/152096, 0.6/143136,
+  1.9/142768, 0.2/126432, 3.4/119568, 5.5/118096,
+  0.8/114384, 0.0/112352; later samples remained responsive and
+  sample 20 was 0.7/93856.
+- No sustained CPU runaway or accessibility timeout reproduced.
+
+Actual application, empty idle
+- Ten samples were 0.0% CPU except one 0.1% sample.
+- RSS decreased from 97,744 KiB to 89,280 KiB in the first ten samples,
+  then settled to 41,472 KiB by sample 20.
+- Window: 900 x 632 points.
+
+Launch timing limitation
+- A repeat launch series returned 2,021, 2,327 and 2,151 ms before
+  Launch Services failed with error -600. The series is invalid and is not
+  used to assert either improvement or regression.
+

@@ -1,0 +1,58 @@
+Mass Print performance baseline evidence
+Date: 2026-10-27 (Europe/Brussels)
+Tree: untouched product code; only the later measurement probes were added before the bridge probe
+
+Environment
+macOS 27.0 (26A428), Apple M2, arm64, 8 GiB
+Swift 6.4 / Xcode 27.1 (27A9275)
+rustc 1.90.0
+
+Initial verification
+Command: cargo test --workspace
+Result: 26 passed, 0 failed
+Command: cargo clippy --workspace --all-targets -- -D warnings
+Result: PASS
+Command: ./scripts/build-native-app.sh
+Result: FAIL — codesign rejected com.apple.FinderInfo attached by File Provider
+
+Launch to first window (ms)
+Cold observed launch: 1867
+Five-run series: 1286, 755, 373, 447, 435
+Warm median, runs 2–5: 441
+
+Idle samples after initial settle (CPU %, RSS KiB)
+2.4 46256
+0.0 36560
+0.0 25680
+0.0 21136
+0.0 20320
+1.0 25616
+0.5 24912
+1.7 24704
+6.5 46048
+0.0 45536
+
+3,000-file external open workload
+open return: 2366 ms
+At 2.7–6.1 s: CPU 79.2–94.7%; RSS climbed from 66,960 to 270,016 KiB
+Accessibility query: timed out after 30 seconds
+Later sample: physical footprint 1.7 GiB; main thread in SwiftUI AppWindowsController.open/activateWindowForExternalEvent
+
+Release bridge probe, 3,000 documents (ms)
+iteration add snapshot sort_ascending sort_descending reorder
+1 342.810 15.457 11.260 12.322 0.059
+2 231.726 12.268 7.067 7.028 0.020
+3 324.201 20.202 10.450 9.581 0.027
+4 222.212 12.231 7.021 7.134 0.018
+5 312.729 14.040 8.583 8.592 0.024
+median 312.729 14.040 8.583 8.592 0.024
+
+Safe preparation probe
+25 synthetic text documents: 2930.465 ms
+submitted_jobs=0
+
+Leak scan
+Physical footprint: 30.5 MiB, peak 48.3 MiB
+112,472 malloc nodes / 13,228 KiB
+414 leaks / 19,872 bytes
+Tool warning: process not fully debuggable due to security restrictions

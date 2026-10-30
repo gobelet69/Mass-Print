@@ -1,0 +1,68 @@
+Mass Print final performance fixes — 2026-10-30
+
+Safety
+- Synthetic documents only.
+- Fake in-process print destination only.
+- Real print jobs submitted: 0.
+- Active CUPS jobs after every run: 0.
+
+Sequential preparation baseline, five runs (milliseconds)
+2489.558
+2151.341
+2115.209
+2070.909
+2071.261
+median=2115.209
+
+Bounded parallel preparation, five runs (milliseconds)
+1263.667
+1015.119
+1007.387
+811.902
+887.565
+median=1007.387
+
+Median change versus same-session sequential baseline
+-1107.822 ms (-52.4%)
+
+Median change versus original 2026-10-27 baseline
+2930.465 ms -> 1007.387 ms (-65.6%)
+
+Correctness checks
+- Maximum preparation window: 4 native documents.
+- Submission order remains source order when preparation completes out of order.
+- Cancellation after the first submission prepares no document beyond the
+  already-active four-document window.
+- LibreOffice formats are isolated into single-document preparation windows.
+
+Leak evidence
+- Temporary development-signed 0.2.1 app with get-task-allow.
+- Launched through leaks --atExit with MallocStackLogging=1.
+- Normal application quit through Command-Q.
+- Physical footprint: 44.8 MiB.
+- Peak physical footprint: 46.7 MiB.
+- Allocated nodes: 84,521 for 12,781 KiB.
+- Leaks: 0.
+- Total leaked bytes: 0.
+
+Distribution/build evidence
+- build/native now links to the persistent Darwin user cache rather than the
+  purgeable temporary directory.
+- Version: 0.2.1.
+- Universal executable: x86_64 arm64.
+- ZIP/DMG/build executable SHA-256:
+  b5eb0d488b549303632dae49bad9ef9bb83a690733a5f26c938ece321670ce03
+- ZIP SHA-256:
+  f75c261c0511bdd68e3209755fff1a233fe99e53799172e1afee531698d6cbeb
+- DMG SHA-256:
+  10709b12ad53ee051eff1bdfc68be5c14ad68f106b7d6de16ae239939a8a667d
+- Packaged application launch: one visible window.
+- Active print jobs after smoke test: 0.
+
+External release limitation
+- Local artifacts are ad-hoc signed.
+- Developer ID distribution verification: BLOCKED as expected.
+- Gatekeeper: rejected as expected.
+- The release workflow now fails closed unless Developer ID and notarization
+  credentials are configured.
+

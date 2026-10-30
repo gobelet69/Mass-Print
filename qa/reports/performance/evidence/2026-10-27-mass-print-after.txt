@@ -1,0 +1,69 @@
+Mass Print performance after-change evidence
+Date: 2026-10-27 (Europe/Brussels)
+
+Final release bridge probe, 3,000 documents (ms)
+Command: cargo test --release -p mass-print-ffi performance_probe_large_queue_bridge_operations -- --ignored --nocapture
+iteration add snapshot sort_ascending sort_descending reorder
+1 243.073 13.671 3.344 2.733 0.083
+2 200.230 9.314 2.653 2.598 0.015
+3 188.489 9.317 2.649 2.699 0.017
+4 228.552 10.141 2.741 2.669 0.015
+5 207.823 9.928 2.742 2.538 0.013
+median 207.823 9.928 2.741 2.669 0.015
+
+Safe preparation probe
+Command: cargo test --release -p mass-print-core performance_probe_prepares_text_documents_without_submitting -- --ignored --nocapture
+25 synthetic text documents: 2302.688 ms
+submitted_jobs=0
+
+3,000-file external open workload
+open return: 1960 ms
+CPU fell below 1% at ~3.7 s and reached 0% at ~4.9 s
+Observed RSS peak: 143,776 KiB; 136,176 KiB at ~9.0 s
+Native accessibility: responsive; visible count 3,000
+Visible alphabetical first item: Résumé document 00001 chapter 90.txt
+Visible reverse-alphabetical first item: Résumé document 03000 chapter 1.txt
+
+Final launch to first window (ms)
+2033, 468, 381, 399, 390
+Warm median, runs 2–5: 395
+
+Final empty idle samples (CPU %, RSS KiB)
+0.0 97504
+0.0 97456
+0.0 97456
+0.0 94288
+0.0 83104
+0.0 58320
+0.1 59680
+0.0 59680
+0.0 43504
+0.0 30848
+
+Final leak scan after large workload/reclamation
+Physical footprint: 49.7 MiB, peak 70.8 MiB
+214,510 malloc nodes / 26,310 KiB
+416 leaks / 19,936 bytes
+Tool warning: process not fully debuggable due to security restrictions
+
+Finder Service
+Launch Services registration: PASS
+NSPerformService("Print with Mass Print"): true
+Visible final queue: 1 document, mass-print-final-finder-service.txt
+
+Safe batch cancellation
+Test: batch_workflow_preserves_order_and_cancels_remaining_jobs_without_spooler
+Result: PASS
+Fake destination accepted job 1; jobs 2 and 3 canceled in order; /usr/bin/lp not called
+
+Final gate
+cargo fmt --all -- --check: PASS
+cargo test --workspace: PASS (27 regular tests; 2 ignored manual probes)
+cargo clippy --workspace --all-targets -- -D warnings: PASS
+Three consecutive ./scripts/build-native-app.sh runs with delayed signature checks: PASS
+Repository build path symlink and resolved packaging source: PASS
+Universal arm64/x86_64 binary: PASS
+Info.plist and Finder service declarations: PASS
+codesign --verify --deep --strict: PASS
+Real print jobs submitted: 0
+Release/push performed: no

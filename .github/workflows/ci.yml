@@ -17,6 +17,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - run: ./scripts/check-release-version.sh
       - run: plutil -lint NativeApp/Info.plist
       - run: test "$(plutil -extract CFBundlePackageType raw NativeApp/Info.plist)" = "APPL"
       - run: test "$(plutil -extract NSServices.0.NSMessage raw NativeApp/Info.plist)" = "queueFiles"

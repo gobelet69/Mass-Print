@@ -71,9 +71,11 @@ launches Mass Print.
 
 ## Security
 
-Release artifacts are ad-hoc signed but are not currently Apple-notarized. If
-Gatekeeper blocks the first launch, Control-click the app, choose **Open**, and
-confirm once.
+Local builds are ad-hoc signed. Public release artifacts must be signed with a
+Developer ID Application certificate, submitted to Apple's notarization
+service, stapled, and accepted by Gatekeeper before the release workflow can
+publish them. The workflow fails closed when signing or notarization credentials
+are unavailable; it never falls back to an unnotarized public artifact.
 
 ## License
 

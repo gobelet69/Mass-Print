@@ -1,5 +1,7 @@
 /node_modules/
 /dist/
+/dist-native/
+/build/
 /target/
 /src-tauri/target/
 /.rustup/

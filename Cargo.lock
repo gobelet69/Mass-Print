@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "mass-print-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "lopdf",
  "serde",
@@ -544,7 +544,7 @@ dependencies = [
 
 [[package]]
 name = "mass-print-ffi"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "mass-print-core",
  "serde",

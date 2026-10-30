@@ -22,6 +22,8 @@ final class AppModel: ObservableObject {
     }
 
     private let engine: RustEngine
+    private let engineQueue = DispatchQueue(label: "com.massprint.engine", qos: .userInitiated)
+    private let cancellationQueue = DispatchQueue(label: "com.massprint.cancellation", qos: .userInitiated)
 
     init() {
         do {
@@ -55,14 +57,15 @@ final class AppModel: ObservableObject {
         guard !paths.isEmpty else { return }
         runInBackground(
             request: ["command": "addPaths", "paths": paths],
-            as: AddReport.self
+            as: AddReport.self,
+            refreshAfter: true
         ) { [weak self] report in
             guard let self else { return }
-            self.refresh()
             if report.rejected.isEmpty {
+                let noun = report.added.count == 1 ? "document" : "documents"
                 self.notice = Notice(
                     kind: .success,
-                    message: "Added \(report.added.count) document(s) to the queue."
+                    message: "Added \(report.added.count.formatted()) \(noun) to the queue."
                 )
             } else {
                 self.notice = Notice(
@@ -127,24 +130,33 @@ final class AppModel: ObservableObject {
         isBusy = true
         runInBackground(
             request: ["command": "print", "settings": settings],
-            as: BatchPrintReport.self
+            as: BatchPrintReport.self,
+            refreshAfter: true
         ) { [weak self] report in
             guard let self else { return }
             self.isBusy = false
-            self.refresh()
             let submitted = report.jobs.filter { $0.outcome == .submitted }.count
             let failed = report.jobs.filter { $0.outcome == .failed }.count
             let canceled = report.jobs.filter { $0.outcome == .canceled }.count
             self.notice = Notice(
                 kind: failed == 0 ? .success : .error,
-                message: "\(submitted) submitted, \(failed) failed, \(canceled) canceled."
+                message: "\(submitted.formatted()) submitted · \(failed.formatted()) failed · \(canceled.formatted()) canceled"
             )
         }
     }
 
     func cancelPrinting() {
-        perform(["command": "cancel"], refreshAfter: false)
         notice = Notice(kind: .information, message: "Cancellation requested.")
+        let engine = self.engine
+        cancellationQueue.async { [weak self] in
+            do {
+                let _: Bool = try engine.call(["command": "cancel"])
+            } catch {
+                DispatchQueue.main.async {
+                    self?.show(error)
+                }
+            }
+        }
     }
 
     func refresh() {
@@ -166,29 +178,55 @@ final class AppModel: ObservableObject {
     }
 
     private func perform(_ request: [String: Any], refreshAfter: Bool = true) {
-        do {
-            let _: Bool = try engine.call(request)
-            if refreshAfter { refresh() }
-        } catch {
-            show(error)
+        let engine = self.engine
+        engineQueue.async { [weak self] in
+            do {
+                let _: Bool = try engine.call(request)
+                let snapshot: QueueSnapshot? = if refreshAfter {
+                    try engine.call(["command": "snapshot"], as: QueueSnapshot.self)
+                } else {
+                    nil
+                }
+                DispatchQueue.main.async {
+                    if let snapshot {
+                        self?.snapshot = snapshot
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.show(error)
+                }
+            }
         }
     }
 
-    private func runInBackground<Value: Decodable>(
+    private func runInBackground<Value: Decodable & Sendable>(
         request: [String: Any],
         as type: Value.Type,
+        refreshAfter: Bool = false,
         completion: @escaping @MainActor (Value) -> Void
     ) {
         let engine = self.engine
-        Task {
+        engineQueue.async { [weak self] in
             do {
-                let value = try await Task.detached {
-                    try engine.call(request, as: type)
-                }.value
-                completion(value)
+                let value = try engine.call(request, as: type)
+                let snapshot: QueueSnapshot? = if refreshAfter {
+                    try engine.call(["command": "snapshot"], as: QueueSnapshot.self)
+                } else {
+                    nil
+                }
+                DispatchQueue.main.async {
+                    guard self != nil else { return }
+                    if let snapshot {
+                        self?.snapshot = snapshot
+                    }
+                    completion(value)
+                }
             } catch {
-                self.isBusy = false
-                self.show(error)
+                DispatchQueue.main.async {
+                    self?.isBusy = false
+                    self?.show(error)
+                }
             }
         }
     }

@@ -1,10 +1,10 @@
 import Foundation
 
-enum DocumentStatus: String, Codable {
+enum DocumentStatus: String, Codable, Sendable {
     case ready, needsConversion, preparing, submitted, failed, canceled
 }
 
-struct DocumentEntry: Codable, Identifiable, Hashable {
+struct DocumentEntry: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let path: String
     let name: String
@@ -18,7 +18,7 @@ struct DocumentEntry: Codable, Identifiable, Hashable {
     let statusMessage: String?
 }
 
-enum SortCriterion: String, Codable, CaseIterable, Identifiable {
+enum SortCriterion: String, Codable, CaseIterable, Identifiable, Sendable {
     case original, name, modified, size, pages, fileType
 
     var id: String { rawValue }
@@ -35,16 +35,16 @@ enum SortCriterion: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum SortDirection: String, Codable {
+enum SortDirection: String, Codable, Sendable {
     case ascending, descending
 }
 
-struct SortSelection: Codable, Equatable {
+struct SortSelection: Codable, Equatable, Sendable {
     let criterion: SortCriterion
     let direction: SortDirection
 }
 
-struct QueueSnapshot: Codable {
+struct QueueSnapshot: Codable, Sendable {
     let documents: [DocumentEntry]
     let totalKnownPages: UInt32
     let unknownPageCount: Int
@@ -58,23 +58,23 @@ struct QueueSnapshot: Codable {
     )
 }
 
-struct AddFailure: Codable {
+struct AddFailure: Codable, Sendable {
     let path: String
     let reason: String
 }
 
-struct AddReport: Codable {
+struct AddReport: Codable, Sendable {
     let added: [DocumentEntry]
     let rejected: [AddFailure]
 }
 
-struct PrinterInfo: Codable, Identifiable {
+struct PrinterInfo: Codable, Identifiable, Sendable {
     let name: String
     let isDefault: Bool
     var id: String { name }
 }
 
-struct PrintSettings: Codable {
+struct PrintSettings: Codable, Sendable {
     let printer: String
     let copies: UInt16
     let grayscale: Bool
@@ -84,18 +84,18 @@ struct PrintSettings: Codable {
     let fitToPage: Bool
 }
 
-enum JobOutcome: String, Codable {
+enum JobOutcome: String, Codable, Sendable {
     case submitted, failed, canceled
 }
 
-struct JobReport: Codable {
+struct JobReport: Codable, Sendable {
     let documentId: String
     let outcome: JobOutcome
     let spoolerJobId: String?
     let message: String
 }
 
-struct BatchPrintReport: Codable {
+struct BatchPrintReport: Codable, Sendable {
     let jobs: [JobReport]
 }
 

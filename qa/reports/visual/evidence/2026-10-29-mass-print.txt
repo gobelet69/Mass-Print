@@ -1,0 +1,44 @@
+Mass Print visual audit evidence
+Date: 2026-10-29 (Europe/Brussels)
+Mode: Audit + Fix
+
+Application
+- Built app: build/native/Mass Print.app
+- Final launch: PASS
+- Info.plist: PASS
+- Signature: valid on disk; satisfies designated requirement
+- Architectures: x86_64 arm64
+- System appearance restored: dark mode true
+
+Visual/runtime checks
+- Empty window: PASS, light and dark
+- Six-document import: PASS
+- Real public.file-url drag hover: PASS, Drop to add to the queue
+- Real public.file-url drop completion: PASS, 1 Document / 1 document / 1 page
+- Canceled row drag: PASS, no persistent insertion state
+- Held row drag: PASS, order changed to Custom Order
+- Natural filename sort A-Z: PASS
+- Natural filename sort Z-A: PASS
+- Minimum-window layout: PASS
+- Busy state: PASS, native progress indicator + Cancel
+- Error state: PASS, batch summary + row warnings
+- Finder Services item: Print with Mass Print
+- Finder service invocation: PASS, selected file delivered to app
+
+Safe print preparation
+- Synthetic queued inputs: 500 and 2,000 document runs
+- Inputs made unavailable after queueing to force preparation failure
+- Active CUPS jobs before: 0
+- Active CUPS jobs after: 0
+- Real print submissions: 0
+
+Final commands
+- cargo fmt --all -- --check: PASS
+- cargo test --workspace: PASS (27 passed, 2 ignored manual probes)
+- cargo clippy --workspace --all-targets -- -D warnings: PASS
+- ./scripts/build-native-app.sh: PASS
+- codesign --verify --deep --strict: PASS
+- plutil -lint: PASS
+- lipo -archs: x86_64 arm64
+
+Release/publish performed: no

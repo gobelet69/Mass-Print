@@ -172,8 +172,36 @@ impl DocumentQueue {
     }
 
     pub fn sort(&mut self, criterion: SortCriterion, direction: SortDirection) {
-        self.documents
-            .sort_by(|left, right| compare_documents(left, right, criterion, direction));
+        if criterion == SortCriterion::Name {
+            self.documents.sort_by_cached_key(|document| NameSortKey {
+                name: NaturalSortKey::new(&document.name),
+                insertion_sequence: document.insertion_sequence,
+                direction,
+            });
+        } else {
+            self.documents
+                .sort_by(|left, right| compare_documents(left, right, criterion, direction));
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct NameSortKey {
+    name: NaturalSortKey,
+    insertion_sequence: u64,
+    direction: SortDirection,
+}
+
+impl Ord for NameSortKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        apply_direction(self.name.cmp(&other.name), self.direction)
+            .then_with(|| self.insertion_sequence.cmp(&other.insertion_sequence))
+    }
+}
+
+impl PartialOrd for NameSortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -238,25 +266,41 @@ fn apply_direction(ordering: Ordering, direction: SortDirection) -> Ordering {
 }
 
 fn natural_compare(left: &str, right: &str) -> Ordering {
-    let left = normalized_sort_name(left);
-    let right = normalized_sort_name(right);
-    let left_segments = natural_segments(&left);
-    let right_segments = natural_segments(&right);
+    NaturalSortKey::new(left).cmp(&NaturalSortKey::new(right))
+}
 
-    for (left_segment, right_segment) in left_segments.iter().zip(&right_segments) {
-        let ordering = match (left_segment, right_segment) {
-            (NaturalSegment::Number(left), NaturalSegment::Number(right)) => {
-                compare_number_segments(left, right)
-            }
-            (NaturalSegment::Text(left), NaturalSegment::Text(right)) => left.cmp(right),
-            (NaturalSegment::Number(_), NaturalSegment::Text(_)) => Ordering::Less,
-            (NaturalSegment::Text(_), NaturalSegment::Number(_)) => Ordering::Greater,
-        };
-        if ordering != Ordering::Equal {
-            return ordering;
-        }
+#[derive(Debug, Eq, PartialEq)]
+struct NaturalSortKey(Vec<NaturalSegment>);
+
+impl NaturalSortKey {
+    fn new(value: &str) -> Self {
+        Self(natural_segments(&normalized_sort_name(value)))
     }
-    left_segments.len().cmp(&right_segments.len())
+}
+
+impl Ord for NaturalSortKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        for (left_segment, right_segment) in self.0.iter().zip(&other.0) {
+            let ordering = match (left_segment, right_segment) {
+                (NaturalSegment::Number(left), NaturalSegment::Number(right)) => {
+                    compare_number_segments(left, right)
+                }
+                (NaturalSegment::Text(left), NaturalSegment::Text(right)) => left.cmp(right),
+                (NaturalSegment::Number(_), NaturalSegment::Text(_)) => Ordering::Less,
+                (NaturalSegment::Text(_), NaturalSegment::Number(_)) => Ordering::Greater,
+            };
+            if ordering != Ordering::Equal {
+                return ordering;
+            }
+        }
+        self.0.len().cmp(&other.0.len())
+    }
+}
+
+impl PartialOrd for NaturalSortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 fn normalized_sort_name(value: &str) -> String {

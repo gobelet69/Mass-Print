@@ -264,6 +264,7 @@ pub unsafe extern "C" fn mass_print_engine_free(engine: *mut Engine) {
 mod tests {
     use super::*;
     use std::fs;
+    use std::time::Instant;
 
     #[test]
     fn bridge_add_sort_reorder_and_snapshot_share_one_queue() {
@@ -320,6 +321,81 @@ mod tests {
         unsafe {
             mass_print_string_free(response);
             mass_print_engine_free(engine);
+        }
+    }
+
+    #[test]
+    #[ignore = "manual performance probe"]
+    fn performance_probe_large_queue_bridge_operations() {
+        let document_count = std::env::var("MASS_PRINT_PERF_DOCUMENTS")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(3_000usize);
+        let directory = tempfile::tempdir().unwrap();
+        let paths: Vec<_> = (0..document_count)
+            .map(|index| {
+                let path = directory.path().join(format!(
+                    "Résumé document {:05} chapter {}.txt",
+                    document_count - index,
+                    index % 97
+                ));
+                fs::write(&path, format!("Synthetic document {index}\n")).unwrap();
+                path.to_string_lossy().into_owned()
+            })
+            .collect();
+
+        for iteration in 1..=5 {
+            let engine = mass_print_engine_new();
+            let call = |request: Value| {
+                let request = CString::new(request.to_string()).unwrap();
+                let response = unsafe { mass_print_engine_call(engine, request.as_ptr()) };
+                let decoded: Value = unsafe { CStr::from_ptr(response) }
+                    .to_str()
+                    .map(serde_json::from_str)
+                    .unwrap()
+                    .unwrap();
+                unsafe { mass_print_string_free(response) };
+                assert_eq!(decoded["ok"], true, "{decoded}");
+                decoded["data"].clone()
+            };
+
+            let started = Instant::now();
+            call(json!({ "command": "addPaths", "paths": paths }));
+            let add_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+            let started = Instant::now();
+            let snapshot = call(json!({ "command": "snapshot" }));
+            let snapshot_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            let first_id = snapshot["documents"][0]["id"].as_str().unwrap();
+
+            let started = Instant::now();
+            call(json!({
+                "command": "sort",
+                "criterion": "name",
+                "direction": "ascending"
+            }));
+            let sort_ascending_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+            let started = Instant::now();
+            call(json!({
+                "command": "sort",
+                "criterion": "name",
+                "direction": "descending"
+            }));
+            let sort_descending_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+            let started = Instant::now();
+            call(json!({
+                "command": "reorder",
+                "id": first_id,
+                "destination": document_count - 1
+            }));
+            let reorder_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+            println!(
+                "PERF iteration={iteration} documents={document_count} add_ms={add_ms:.3} snapshot_ms={snapshot_ms:.3} sort_ascending_ms={sort_ascending_ms:.3} sort_descending_ms={sort_descending_ms:.3} reorder_ms={reorder_ms:.3}"
+            );
+            unsafe { mass_print_engine_free(engine) };
         }
     }
 }

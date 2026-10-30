@@ -16,9 +16,58 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.90.0
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+          components: clippy,rustfmt
+      - name: Verify release version and tag
+        run: ./scripts/check-release-version.sh
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
-      - run: ./scripts/build-native-app.sh
-      - run: ./scripts/package-native-release.sh
+      - name: Import Developer ID certificate and notarization credentials
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARY_ID: ${{ secrets.APPLE_NOTARY_ID }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$MACOS_CERTIFICATE_P12"
+          test -n "$MACOS_CERTIFICATE_PASSWORD"
+          test -n "$APPLE_NOTARY_ID"
+          test -n "$APPLE_NOTARY_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+          KEYCHAIN_PATH="$RUNNER_TEMP/mass-print-signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          CERTIFICATE_PATH="$RUNNER_TEMP/mass-print-developer-id.p12"
+          print -n "$MACOS_CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          xcrun notarytool store-credentials mass-print-ci \
+            --apple-id "$APPLE_NOTARY_ID" \
+            --password "$APPLE_NOTARY_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --keychain "$KEYCHAIN_PATH"
+          print "MASS_PRINT_NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+      - name: Build Developer ID signed universal application
+        env:
+          MASS_PRINT_CODESIGN_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          test -n "$MASS_PRINT_CODESIGN_IDENTITY"
+          ./scripts/build-native-app.sh
+      - name: Notarize, staple, package, and verify Gatekeeper acceptance
+        env:
+          MASS_PRINT_CODESIGN_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MASS_PRINT_NOTARY_PROFILE: mass-print-ci
+          MASS_PRINT_NOTARY_KEYCHAIN: ${{ env.MASS_PRINT_NOTARY_KEYCHAIN }}
+        run: ./scripts/notarize-native-release.sh
       - uses: softprops/action-gh-release@v2
         with:
           name: "Mass Print ${{ github.ref_name }}"
@@ -27,6 +76,6 @@ jobs:
 
             Universal build for Apple Silicon and Intel. No WebView or Tauri runtime.
 
-            This build is ad-hoc signed and not notarized.
+            Developer ID signed, Apple-notarized, and stapled for Gatekeeper.
           files: dist-native/*
           fail_on_unmatched_files: true

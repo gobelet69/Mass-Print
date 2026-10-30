@@ -5,6 +5,7 @@ final class FileIngress {
 
     private var pending: [String] = []
     private var receiver: (([String]) -> Void)?
+    private var scheduledDelivery: DispatchWorkItem?
     private let lock = NSLock()
 
     private init() {}
@@ -12,25 +13,40 @@ final class FileIngress {
     func install(receiver: @escaping ([String]) -> Void) {
         lock.lock()
         self.receiver = receiver
-        let paths = pending
-        pending.removeAll()
+        scheduleDeliveryLocked()
         lock.unlock()
-
-        if !paths.isEmpty {
-            DispatchQueue.main.async { receiver(paths) }
-        }
     }
 
     func receive(_ paths: [String]) {
         guard !paths.isEmpty else { return }
         lock.lock()
-        if let receiver {
-            lock.unlock()
-            DispatchQueue.main.async { receiver(paths) }
-        } else {
-            pending.append(contentsOf: paths)
-            lock.unlock()
+        pending.append(contentsOf: paths)
+        scheduleDeliveryLocked()
+        lock.unlock()
+    }
+
+    private func scheduleDeliveryLocked() {
+        guard receiver != nil else { return }
+        scheduledDelivery?.cancel()
+        let delivery = DispatchWorkItem { [weak self] in
+            self?.deliverPendingFiles()
         }
+        scheduledDelivery = delivery
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: delivery)
+    }
+
+    private func deliverPendingFiles() {
+        lock.lock()
+        guard let receiver, !pending.isEmpty else {
+            scheduledDelivery = nil
+            lock.unlock()
+            return
+        }
+        let paths = pending
+        pending.removeAll()
+        scheduledDelivery = nil
+        lock.unlock()
+        receiver(paths)
     }
 }
 
@@ -65,10 +81,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
-        FileIngress.shared.receive(filenames)
-        sender.reply(toOpenOrPrint: .success)
-        sender.activate(ignoringOtherApps: true)
-        sender.windows.first?.makeKeyAndOrderFront(nil)
+        receive(filenames, in: sender)
+    }
+
+    func application(_ sender: NSApplication, open urls: [URL]) {
+        receive(urls.filter(\.isFileURL).map(\.path), in: sender)
+    }
+
+    private func receive(_ paths: [String], in application: NSApplication) {
+        FileIngress.shared.receive(paths)
+        application.reply(toOpenOrPrint: .success)
+        application.activate(ignoringOtherApps: true)
+        application.windows.first?.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
