@@ -63,17 +63,27 @@ The graphical interface is built natively in **SwiftUI and AppKit**, with zero W
 - **Dependencies**: 
   - Standard macOS CUPS print subsystem (built into macOS).
   - Optional: [LibreOffice](https://www.libreoffice.org/) installed in `/Applications` (only required if batch-printing Microsoft Office or OpenDocument formats).
+- **Privileges**: Standard user account. Mass Print does not require administrator privileges or root access.
+- **Sandboxing**: Runs as a standard macOS user-space application (non-sandboxed) to allow reading files dropped from Finder and interacting directly with macOS CUPS print spoolers.
 
 ---
 
 ## 5. Installation Instructions
 
-1. Download the latest Universal DMG from the **[GitHub Releases](https://github.com/gobelet69/Mass-Print/releases/latest)** page:
-   - `Mass-Print-v0.2.1-macOS-universal.dmg`
+1. Download the latest release from the **[GitHub Releases](https://github.com/gobelet69/Mass-Print/releases/latest)** page:
+   - Universal Disk Image: `Mass.Print_0.2.1_universal.dmg`
+   - Universal ZIP archive: `Mass.Print_0.2.1_universal.app.zip`
 2. Open the downloaded `.dmg` disk image.
 3. Drag **Mass Print.app** into your `/Applications` directory.
-4. Launch **Mass Print.app** once. On first launch, macOS Launch Services registers the native **Print with Mass Print** Finder service.
-5. *Gatekeeper verification*: If using an ad-hoc or community build without Developer ID notarisation, right-click `Mass Print.app` in Finder, choose **Open**, and confirm.
+4. Launch **Mass Print.app** once. On first launch, macOS Launch Services registers the native **Print with Mass Print** Finder Quick Action / Service.
+5. **macOS Gatekeeper Verification (Non-Notarised Builds)**:
+   Because releases are ad-hoc signed without an Apple Developer ID subscription, macOS Gatekeeper may present a dialog on first launch (*"Mass Print cannot be opened because Apple cannot check it for malicious software"*). To safely open the application:
+   - **Via Finder**: Right-click (or Control-click) **Mass Print.app** in `/Applications`, choose **Open**, and click **Open** in the confirmation alert. Alternatively, navigate to **System Settings → Privacy & Security** and click **Open Anyway**.
+   - **Via Terminal** (optional): Clear the quarantine extended attribute:
+     ```bash
+     xattr -d com.apple.quarantine "/Applications/Mass Print.app"
+     ```
+   Once opened, macOS permanently remembers your choice, and subsequent launches start instantly without warnings.
 
 ---
 
