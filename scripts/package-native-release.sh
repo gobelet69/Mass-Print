@@ -17,4 +17,4 @@ hdiutil create \
   -format UDZO \
   "$DIST_DIR/Mass.Print_${VERSION}_universal.dmg"
 
-shasum -a 256 "$DIST_DIR"/*
+(cd "$DIST_DIR" && shasum -a 256 Mass.Print* > SHA256SUMS.txt && cat SHA256SUMS.txt)
