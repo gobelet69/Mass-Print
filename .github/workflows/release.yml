@@ -43,7 +43,7 @@ jobs:
             KEYCHAIN_PATH="$RUNNER_TEMP/mass-print-signing.keychain-db"
             KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
             CERTIFICATE_PATH="$RUNNER_TEMP/mass-print-developer-id.p12"
-            print -n "$MACOS_CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE_PATH"
+            printf "%s" "$MACOS_CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE_PATH"
             security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
             security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
             security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -60,14 +60,14 @@ jobs:
                 --password "$APPLE_NOTARY_PASSWORD" \
                 --team-id "$APPLE_TEAM_ID" \
                 --keychain "$KEYCHAIN_PATH"
-              print "MASS_PRINT_NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
-              print "HAS_NOTARIZATION=true" >> "$GITHUB_ENV"
+              echo "MASS_PRINT_NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+              echo "HAS_NOTARIZATION=true" >> "$GITHUB_ENV"
             fi
-            print "MASS_PRINT_CODESIGN_IDENTITY=${{ secrets.MACOS_SIGNING_IDENTITY }}" >> "$GITHUB_ENV"
+            echo "MASS_PRINT_CODESIGN_IDENTITY=${{ secrets.MACOS_SIGNING_IDENTITY }}" >> "$GITHUB_ENV"
           else
             echo "No Developer ID configured. Using ad-hoc build."
-            print "MASS_PRINT_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
-            print "HAS_NOTARIZATION=false" >> "$GITHUB_ENV"
+            echo "MASS_PRINT_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "HAS_NOTARIZATION=false" >> "$GITHUB_ENV"
           fi
 
       - name: Build universal native macOS application
