@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR=${0:A:h:h}
 BUILD_DIR="$ROOT_DIR/build/native"
 APP_PATH="$BUILD_DIR/Mass Print.app"
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/massprint_target}"
 CACHE_KEY=$(print -n "$ROOT_DIR" | cksum | awk '{print $1}')
 USER_CACHE_ROOT=$(getconf DARWIN_USER_CACHE_DIR)
 CACHE_DIR="${USER_CACHE_ROOT%/}/com.massprint.native-build/$CACHE_KEY"
@@ -17,7 +18,7 @@ trap 'rm -rf -- "$STAGE_DIR"' EXIT
 
 for target in $TARGETS; do
   rustup target add "$target"
-  cargo build --manifest-path "$ROOT_DIR/Cargo.toml" -p mass-print-ffi --release --target "$target"
+  cargo build --manifest-path "$ROOT_DIR/Cargo.toml" -p mass-print-ffi --release --target "$target" --target-dir "$CARGO_TARGET_DIR"
 done
 
 mkdir -p -- "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources" "$BUILD_DIR/bin"
@@ -35,7 +36,7 @@ for architecture in arm64 x86_64; do
     -O \
     -target "$architecture-apple-macos13.0" \
     "${SOURCES[@]}" \
-    "$ROOT_DIR/target/$rust_target/release/libmass_print_ffi.a" \
+    "$CARGO_TARGET_DIR/$rust_target/release/libmass_print_ffi.a" \
     -framework AppKit \
     -framework SwiftUI \
     -framework UniformTypeIdentifiers \

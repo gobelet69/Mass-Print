@@ -8,6 +8,7 @@ struct MassPrintApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(model: model)
+                .tint(Color(red: 245/255, green: 158/255, blue: 11/255))
         }
         .windowStyle(.titleBar)
         .commands {
