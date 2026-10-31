@@ -61,9 +61,7 @@ struct ContentView: View {
     private var queue: some View {
         if model.snapshot.documents.isEmpty {
             VStack(spacing: 14) {
-                Image(systemName: externalDropTargeted ? "arrow.down.doc.fill" : "doc.on.doc")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.tint)
+                IridescencePixelPlatenBadge(isTargeted: externalDropTargeted)
                 Text(externalDropTargeted ? "Drop to add to the queue" : "Drop files here to print")
                     .font(.title2.bold())
                 Text("PDF, images, text, and Office documents")
@@ -72,10 +70,18 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+            .background(
+                Color(red: 112.0 / 255.0, green: 46.0 / 255.0, blue: 228.0 / 255.0).opacity(0.035),
+                in: RoundedRectangle(cornerRadius: 14)
+            )
             .overlay {
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(externalDropTargeted ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: externalDropTargeted ? 3 : 1)
+                    .stroke(
+                        externalDropTargeted
+                            ? Color.accentColor
+                            : Color(red: 112.0 / 255.0, green: 46.0 / 255.0, blue: 228.0 / 255.0).opacity(0.18),
+                        lineWidth: externalDropTargeted ? 3 : 1
+                    )
             }
         } else {
             VStack(spacing: 0) {
@@ -346,5 +352,64 @@ private struct NoticeView: View {
         case .success: return "checkmark.circle.fill"
         case .error: return "exclamationmark.triangle.fill"
         }
+    }
+}
+
+/// Static 111iridescence pixel-grid platen & star emblem for the Mass Print empty-state drop zone.
+private struct IridescencePixelPlatenBadge: View {
+    let isTargeted: Bool
+
+    var body: some View {
+        Canvas { context, size in
+            let obsidian = Color(red: 22.0 / 255.0, green: 16.0 / 255.0, blue: 29.0 / 255.0)
+            let electricBlue = Color(red: 34.0 / 255.0, green: 102.0 / 255.0, blue: 242.0 / 255.0)
+            let luminousCyan = Color(red: 12.0 / 255.0, green: 192.0 / 255.0, blue: 232.0 / 255.0)
+            let deepViolet = Color(red: 112.0 / 255.0, green: 46.0 / 255.0, blue: 228.0 / 255.0)
+            let turquoise = Color(red: 18.0 / 255.0, green: 204.0 / 255.0, blue: 184.0 / 255.0)
+            let warmCoral = Color(red: 238.0 / 255.0, green: 118.0 / 255.0, blue: 106.0 / 255.0)
+
+            // Back & middle sheet silhouettes
+            let backSheet = Path(roundedRect: CGRect(x: 18, y: 6, width: 40, height: 24), cornerRadius: 5)
+            context.fill(backSheet, with: .color(deepViolet.opacity(0.14)))
+
+            let midSheet = Path(roundedRect: CGRect(x: 13, y: 12, width: 50, height: 28), cornerRadius: 6)
+            context.fill(midSheet, with: .color(electricBlue.opacity(0.18)))
+
+            // Front emerging sheet
+            let frontSheet = Path(roundedRect: CGRect(x: 9, y: 20, width: 58, height: 48), cornerRadius: 8)
+            context.fill(frontSheet, with: .color(.white))
+            context.stroke(frontSheet, with: .color(obsidian.opacity(0.28)), lineWidth: 1.5)
+
+            // Central Obsidian pixel-grid platen bar
+            let platen = Path(roundedRect: CGRect(x: 4, y: 31, width: 68, height: 16), cornerRadius: 5)
+            context.fill(platen, with: .color(obsidian))
+
+            // 8 integer grid-locked pixel cells inside platen
+            let cellColors = [luminousCyan, luminousCyan, electricBlue, electricBlue, turquoise, deepViolet, warmCoral, warmCoral]
+            for i in 0..<8 {
+                let cx = CGFloat(9 + i * 7)
+                let cellRect = CGRect(x: cx, y: 36, width: 5, height: 6)
+                context.fill(Path(roundedRect: cellRect, cornerRadius: 1), with: .color(cellColors[i]))
+            }
+
+            // Output lines on sheet
+            context.fill(Path(roundedRect: CGRect(x: 16, y: 52, width: 28, height: 4), cornerRadius: 1.5), with: .color(electricBlue))
+            context.fill(Path(roundedRect: CGRect(x: 16, y: 59, width: 42, height: 3.5), cornerRadius: 1.5), with: .color(obsidian.opacity(0.55)))
+
+            // Signature 5-cell pixel cross star (`cross-5`) at top right of sheet
+            let starCells: [(CGFloat, CGFloat, Color)] = [
+                (0, 0, luminousCyan),
+                (0, -1, electricBlue),
+                (-1, 0, deepViolet),
+                (1, 0, turquoise),
+                (0, 1, deepViolet)
+            ]
+            for (dx, dy, col) in starCells {
+                let rect = CGRect(x: 54 + dx * 3.5, y: 24 + dy * 3.5, width: 2.8, height: 2.8)
+                context.fill(Path(rect), with: .color(col))
+            }
+        }
+        .frame(width: 76, height: 74)
+        .scaleEffect(isTargeted ? 1.06 : 1.0)
     }
 }
