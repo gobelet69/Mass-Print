@@ -1,19 +1,96 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none" role="img" aria-label="Mass Print icon">
+  <title>Mass Print</title>
   <defs>
-    <linearGradient id="bg" x1="140" y1="80" x2="900" y2="950" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3AA7FF"/><stop offset="1" stop-color="#0751C7"/>
+    
+    <!-- Ambient ground shadow -->
+    <filter id="squircleShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="28" stdDeviation="24" flood-color="#000000" flood-opacity="0.14"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+
+    <!-- Internal element soft shadow -->
+    <filter id="elementShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.10"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.06"/>
+    </filter>
+
+    <!-- Clean porcelain surface gradient (Apple natural daylight) -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="60%" stop-color="#F8FAFC"/>
+      <stop offset="100%" stop-color="#EDF2F7"/>
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="30" stdDeviation="28" flood-opacity=".22"/></filter>
+
+    <!-- Subtle specular top rim highlight -->
+    <linearGradient id="topRim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="20%" stop-color="#FFFFFF" stop-opacity="0.4"/>
+      <stop offset="80%" stop-color="#CBD5E1" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.4"/>
+    </linearGradient>
+
+    <!-- Primary Accent Gradient -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      
+    <stop offset="0%" stop-color="#F97316"/>
+    <stop offset="100%" stop-color="#C2410C"/>
+  
+    </linearGradient>
+  
+    <!-- Document Stack Shadows -->
+    <filter id="stackShadow1" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.12"/>
+    </filter>
+    <filter id="stackShadow2" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.10"/>
+    </filter>
   </defs>
-  <rect x="64" y="64" width="896" height="896" rx="206" fill="url(#bg)"/>
-  <g filter="url(#shadow)">
-    <path d="M304 198h327l121 121v192H304z" fill="#F7FAFF"/>
-    <path d="M631 198v121h121" fill="#D8E6F8"/>
-    <rect x="222" y="430" width="580" height="316" rx="68" fill="#18395D"/>
-    <rect x="285" y="560" width="454" height="260" rx="22" fill="#fff"/>
-    <rect x="344" y="630" width="336" height="24" rx="12" fill="#91ADD0"/>
-    <rect x="344" y="688" width="270" height="24" rx="12" fill="#B2C5DE"/>
-    <circle cx="690" cy="499" r="22" fill="#5BE18B"/>
+
+  <!-- Base Squircle -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bgGrad)" filter="url(#squircleShadow)"/>
+<rect x="101" y="101" width="822" height="822" rx="184" stroke="url(#topRim)" stroke-width="2" fill="none"/>
+
+  <!-- Sheet 3 (Backmost sheet in batch stack) -->
+  <g filter="url(#stackShadow1)">
+    <rect x="332" y="210" width="360" height="460" rx="18" fill="#E2E8F0"/>
+    <rect x="332" y="210" width="360" height="460" rx="18" stroke="rgba(0,0,0,0.06)" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Sheet 2 (Middle sheet in batch stack, offset) -->
+  <g filter="url(#stackShadow2)">
+    <rect x="302" y="250" width="420" height="470" rx="18" fill="#F1F5F9"/>
+    <rect x="302" y="250" width="420" height="470" rx="18" stroke="rgba(0,0,0,0.06)" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Sheet 1 (Front hero document feeding out) -->
+  <g filter="url(#stackShadow1)">
+    <rect x="272" y="290" width="480" height="480" rx="18" fill="#FFFFFF"/>
+    <rect x="272" y="290" width="480" height="480" rx="18" stroke="rgba(0,0,0,0.06)" stroke-width="2" fill="none"/>
+    
+    <!-- Document Content Preview Lines -->
+    <rect x="328" y="350" width="220" height="24" rx="7" fill="#1E293B"/>
+    <rect x="328" y="398" width="368" height="12" rx="5" fill="#94A3B8"/>
+    <rect x="328" y="426" width="340" height="12" rx="5" fill="#CBD5E1"/>
+    <rect x="328" y="454" width="368" height="12" rx="5" fill="#CBD5E1"/>
+    <rect x="328" y="482" width="280" height="12" rx="5" fill="#CBD5E1"/>
+
+    <!-- Document Thumbnail Box -->
+    <rect x="328" y="524" width="160" height="100" rx="10" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="2"/>
+    <rect x="512" y="534" width="184" height="12" rx="5" fill="#CBD5E1"/>
+    <rect x="512" y="560" width="160" height="12" rx="5" fill="#CBD5E1"/>
+    <rect x="512" y="586" width="184" height="12" rx="5" fill="#CBD5E1"/>
+  </g>
+
+  <!-- Precision Mechanical Print Platen / Alignment Bar (Warm Terracotta/Amber) -->
+  <!-- Positioned across the bottom of the feed path (x from 212 to 812, width 600, height 76, y 696 to 772) -->
+  <g filter="url(#elementShadow)">
+    <rect x="222" y="700" width="580" height="76" rx="20" fill="url(#accentGrad)"/>
+    <!-- Specular highlight on platen -->
+    <rect x="223" y="701" width="578" height="36" rx="19" fill="#FFFFFF" opacity="0.2"/>
+    
+    <!-- Mechanical Feed Emitter Slot -->
+    <rect x="262" y="730" width="500" height="14" rx="7" fill="#7C2D12"/>
+    <!-- Center Registration Guide Pip -->
+    <circle cx="512" cy="737" r="4" fill="#FFFFFF"/>
   </g>
 </svg>
-
