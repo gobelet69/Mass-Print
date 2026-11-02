@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
     @Published var duplex = false
     @Published var landscape = false
     @Published var fitToPage = true
+    @Published var paperSize = ""
     @Published var isBusy = false
     @Published var notice: Notice?
 
@@ -123,7 +124,7 @@ final class AppModel: ObservableObject {
             "copies": copies,
             "grayscale": grayscale,
             "duplex": duplex,
-            "paperSize": NSNull(),
+            "paperSize": paperSize.isEmpty ? NSNull() : paperSize,
             "landscape": landscape,
             "fitToPage": fitToPage,
         ]
@@ -160,14 +161,12 @@ final class AppModel: ObservableObject {
     }
 
     func refresh() {
-        do {
-            snapshot = try engine.call(["command": "snapshot"], as: QueueSnapshot.self)
-        } catch {
-            show(error)
+        runInBackground(request: ["command": "snapshot"], as: QueueSnapshot.self) { [weak self] snapshot in
+            self?.snapshot = snapshot
         }
     }
 
-    private func loadPrinters() {
+    func loadPrinters() {
         runInBackground(request: ["command": "printers"], as: [PrinterInfo].self) { [weak self] printers in
             guard let self else { return }
             self.printers = printers

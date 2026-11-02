@@ -21,7 +21,10 @@ struct MassPrintApp: App {
             }
             CommandMenu("Queue") {
                 Button("Clear Queue", action: model.clear)
+                    .keyboardShortcut("k", modifiers: .command)
                     .disabled(model.snapshot.documents.isEmpty)
+                Button("Refresh Printers", action: model.loadPrinters)
+                    .keyboardShortcut("r", modifiers: .command)
                 Divider()
                 Button("Print All", action: model.printAll)
                     .keyboardShortcut("p")

@@ -12,7 +12,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             toolbar
             if let notice = model.notice {
-                NoticeView(notice: notice)
+                NoticeView(notice: notice, onDismiss: { model.notice = nil })
                     .padding(.horizontal, 22)
                     .padding(.bottom, 10)
             }
@@ -193,8 +193,17 @@ struct ContentView: View {
             .frame(minWidth: 240)
             Stepper("Copies: \(model.copies)", value: $model.copies, in: 1...999)
                 .frame(width: 125)
+            Picker("Paper", selection: $model.paperSize) {
+                Text("Default").tag("")
+                Text("A4").tag("A4")
+                Text("US Letter").tag("Letter")
+                Text("US Legal").tag("Legal")
+            }
+            .frame(width: 110)
             Toggle("Grayscale", isOn: $model.grayscale)
             Toggle("Two-sided", isOn: $model.duplex)
+            Toggle("Landscape", isOn: $model.landscape)
+            Toggle("Fit to Page", isOn: $model.fitToPage)
             Spacer()
             if model.isBusy {
                 ProgressView()
@@ -258,8 +267,14 @@ struct ContentView: View {
     }
 
     private func loadDroppedFiles(_ providers: [NSItemProvider]) {
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var collectedURLs: [URL] = []
+
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            group.enter()
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                defer { group.leave() }
                 let url: URL?
                 if let data = item as? Data {
                     url = URL(dataRepresentation: data, relativeTo: nil)
@@ -269,8 +284,16 @@ struct ContentView: View {
                     url = nil
                 }
                 if let url {
-                    Task { @MainActor in model.add(urls: [url]) }
+                    lock.lock()
+                    collectedURLs.append(url)
+                    lock.unlock()
                 }
+            }
+        }
+
+        group.notify(queue: .main) {
+            if !collectedURLs.isEmpty {
+                model.add(urls: collectedURLs)
             }
         }
     }
@@ -294,10 +317,7 @@ private struct DocumentRow: View {
                 Text(metadata).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            if document.status == .failed {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    .help(document.statusMessage ?? "Printing failed")
-            }
+            statusView
             Button(action: remove) {
                 Image(systemName: "xmark.circle.fill")
             }
@@ -318,6 +338,46 @@ private struct DocumentRow: View {
         }
     }
 
+    @ViewBuilder
+    private var statusView: some View {
+        switch document.status {
+        case .ready:
+            EmptyView()
+        case .needsConversion:
+            Text("Needs Conversion")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.12), in: Capsule())
+                .help(document.statusMessage ?? "Format requires LibreOffice conversion")
+        case .preparing:
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini)
+                Text("Preparing").font(.caption2).foregroundStyle(.secondary)
+            }
+        case .submitted:
+            Text("Submitted")
+                .font(.caption2)
+                .foregroundStyle(.green)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.green.opacity(0.12), in: Capsule())
+        case .failed:
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text(document.statusMessage ?? "Failed").font(.caption2).foregroundStyle(.orange).lineLimit(1)
+            }
+        case .canceled:
+            Text("Canceled")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.12), in: Capsule())
+        }
+    }
+
     private var metadata: String {
         let pages = document.pageCount.map { "\($0) page\($0 == 1 ? "" : "s")" } ?? "Pages unknown"
         return "\(document.extension) · \(pages) · \(document.sizeBytes.fileSizeText)"
@@ -326,12 +386,21 @@ private struct DocumentRow: View {
 
 private struct NoticeView: View {
     let notice: AppModel.Notice
+    var onDismiss: (() -> Void)? = nil
 
     var body: some View {
         HStack {
             Image(systemName: icon)
             Text(notice.message)
             Spacer()
+            if let onDismiss {
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss notice")
+            }
         }
         .padding(10)
         .foregroundStyle(color)

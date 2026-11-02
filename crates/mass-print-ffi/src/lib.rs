@@ -168,8 +168,17 @@ impl Engine {
                 if let Ok(mut state) = submitted_state.lock() {
                     state.submitted_job_ids.push(job_id.to_string());
                 }
+                if self.canceled.load(Ordering::SeqCst) {
+                    self.backend.cancel_jobs(&[job_id.to_string()]);
+                }
             })
             .map_err(stringify)?;
+
+        if self.canceled.load(Ordering::SeqCst) {
+            if let Ok(state) = self.state.lock() {
+                self.backend.cancel_jobs(&state.submitted_job_ids);
+            }
+        }
 
         let mut state = self.state.lock().map_err(stringify)?;
         for job in &report.jobs {
@@ -198,7 +207,7 @@ fn response(result: Result<Value, String>) -> *mut c_char {
     let serialized = serde_json::to_string(&value)
         .unwrap_or_else(|_| r#"{"ok":false,"error":"serialization failed"}"#.into());
     CString::new(serialized)
-        .expect("JSON cannot contain interior nulls")
+        .unwrap_or_else(|_| CString::new(r#"{"ok":false,"error":"encoding error"}"#).unwrap_or_default())
         .into_raw()
 }
 

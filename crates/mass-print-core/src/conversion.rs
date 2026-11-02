@@ -74,9 +74,15 @@ impl DocumentConverter for LibreOfficeConverter {
                     document.format.label(),
                 ))?;
 
+        let doc_outdir = output_directory.join(document.id.to_string());
+        std::fs::create_dir_all(&doc_outdir)
+            .map_err(|error| ConversionError::Failed(error.to_string()))?;
+        let profile_url = format!("-env:UserInstallation=file://{}/profile", doc_outdir.display());
+
         let output = Command::new(executable)
-            .args(["--headless", "--convert-to", "pdf", "--outdir"])
-            .arg(output_directory)
+            .args(["--headless", &profile_url, "--convert-to", "pdf", "--outdir"])
+            .arg(&doc_outdir)
+            .arg("--")
             .arg(&document.path)
             .stdin(Stdio::null())
             .output()
@@ -94,7 +100,7 @@ impl DocumentConverter for LibreOfficeConverter {
             .path
             .file_stem()
             .ok_or(ConversionError::MissingOutput)?;
-        let converted = output_directory.join(stem).with_extension("pdf");
+        let converted = doc_outdir.join(stem).with_extension("pdf");
         converted
             .is_file()
             .then_some(converted)

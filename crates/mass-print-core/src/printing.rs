@@ -130,6 +130,7 @@ impl LpPrintBackend {
         let output = Command::new("/usr/sbin/cupsfilter")
             .arg("-m")
             .arg("application/pdf")
+            .arg("--")
             .arg(&document.path)
             .stdin(Stdio::null())
             .stdout(Stdio::from(output_file))
@@ -149,10 +150,15 @@ impl LpPrintBackend {
     }
 
     fn submit(path: &Path, settings: &PrintSettings) -> Result<String, String> {
+        let trimmed_printer = settings.printer.trim();
+        if trimmed_printer.is_empty() || trimmed_printer.starts_with('-') || trimmed_printer.contains(|c: char| c.is_control()) {
+            return Err("Invalid printer destination name".to_string());
+        }
+
         let mut command = Command::new("/usr/bin/lp");
         command
             .arg("-d")
-            .arg(&settings.printer)
+            .arg(trimmed_printer)
             .arg("-n")
             .arg(settings.copies.to_string());
         if settings.grayscale {
@@ -162,7 +168,10 @@ impl LpPrintBackend {
             command.args(["-o", "sides=two-sided-long-edge"]);
         }
         if let Some(paper_size) = settings.paper_size.as_deref() {
-            command.args(["-o", &format!("media={paper_size}")]);
+            let trimmed_size = paper_size.trim();
+            if !trimmed_size.is_empty() && !trimmed_size.starts_with('-') && trimmed_size.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
+                command.args(["-o", &format!("media={trimmed_size}")]);
+            }
         }
         if settings.landscape {
             command.args(["-o", "landscape"]);
@@ -171,6 +180,7 @@ impl LpPrintBackend {
             command.args(["-o", "fit-to-page"]);
         }
         let output = command
+            .arg("--")
             .arg(path)
             .stdin(Stdio::null())
             .output()
@@ -380,12 +390,16 @@ impl PrintBackend for LpPrintBackend {
 
     fn cancel_jobs(&self, job_ids: &[String]) {
         for job_id in job_ids {
-            let _ = Command::new("/usr/bin/cancel")
-                .arg(job_id)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+            let trimmed = job_id.trim();
+            if !trimmed.is_empty() && !trimmed.starts_with('-') && trimmed.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+                let _ = Command::new("/usr/bin/cancel")
+                    .arg("--")
+                    .arg(trimmed)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
         }
     }
 }
