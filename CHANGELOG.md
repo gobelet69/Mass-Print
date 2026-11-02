@@ -2,6 +2,21 @@
 
 All notable changes to Mass Print are documented here.
 
+## [0.3.0] - 2026-11-02
+
+### Added
+
+- Native print controls for Paper Size (Default, A4, Letter, Legal), Landscape orientation toggle, and Fit to Page option directly in the main toolbar.
+- Keyboard shortcuts: `Cmd+K` (Clear Queue), `Cmd+R` (Refresh Printers), and notice dismissal.
+- Document row status badges reflecting submission and conversion lifecycle states.
+
+### Fixed
+
+- Prevent argument injection in `/usr/bin/lp` and `/usr/sbin/cupsfilter` via strict `"--"` argument delimiters.
+- Whitelist and sanitize printer names, paper sizes, and spooler job IDs.
+- Isolate headless document conversions with unique per-document temporary directories and custom `-env:UserInstallation` flags.
+- Coalesce Finder batch drag-and-drop operations with `DispatchGroup` on a background engine queue.
+
 ## [0.2.1] - 2026-10-30
 
 ### Fixed
