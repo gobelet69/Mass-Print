@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/gobelet69/Mass-Print/releases/latest"><img src="https://img.shields.io/badge/release-v0.2.1-amber?color=F59E0B" alt="Release v0.2.1"></a>
+  <a href="https://github.com/gobelet69/Mass-Print/releases/latest"><img src="https://img.shields.io/badge/release-v0.3.1-amber?color=F59E0B" alt="Release v0.3.1"></a>
   <img src="https://img.shields.io/badge/platform-macOS%2013.0%2B-blue?logo=apple" alt="macOS 13+">
   <img src="https://img.shields.io/badge/architecture-Universal%202%20(arm64%20%2B%20x86__64)-purple" alt="Universal 2">
   <img src="https://img.shields.io/badge/core-Rust%202021-orange?logo=rust" alt="Rust Core">
@@ -71,25 +71,20 @@ The graphical interface is built natively in **SwiftUI and AppKit**, with zero W
 ## 5. Installation Instructions
 
 1. Download the latest release from the **[GitHub Releases](https://github.com/gobelet69/Mass-Print/releases/latest)** page:
-   - Universal Disk Image: `Mass.Print_0.2.1_universal.dmg`
-   - Universal ZIP archive: `Mass.Print_0.2.1_universal.app.zip`
+   - Universal Disk Image: `Mass.Print_0.3.1_universal.dmg`
+   - Universal ZIP archive: `Mass.Print_0.3.1_universal.app.zip`
 2. Open the downloaded `.dmg` disk image.
 3. Drag **Mass Print.app** into your `/Applications` directory.
 4. Launch **Mass Print.app** once. On first launch, macOS Launch Services registers the native **Print with Mass Print** Finder Quick Action / Service.
 5. **macOS Gatekeeper Verification (Non-Notarised Builds)**:
-   Because releases are ad-hoc signed without an Apple Developer ID subscription, macOS Gatekeeper may present a dialog on first launch (*"Mass Print cannot be opened because Apple cannot check it for malicious software"*). To safely open the application:
+   This release is ad-hoc signed and is not notarised. macOS Gatekeeper may present a dialog on first launch (*"Mass Print cannot be opened because Apple cannot check it for malicious software"*). To safely open the application:
    - **Via Finder**: Right-click (or Control-click) **Mass Print.app** in `/Applications`, choose **Open**, and click **Open** in the confirmation alert. Alternatively, navigate to **System Settings → Privacy & Security** and click **Open Anyway**.
-   - **Via Terminal** (optional): Clear the quarantine extended attribute:
-     ```bash
-     xattr -d com.apple.quarantine "/Applications/Mass Print.app"
-     ```
-   Once opened, macOS permanently remembers your choice, and subsequent launches start instantly without warnings.
 
 ---
 
 ## 6. Getting Started
 
-1. **Launch Mass Print**: Open the app from Spotlight or `/Applications`. The queue window appears with the iridescent Amber theme.
+1. **Launch Mass Print**: Open the app from Spotlight or `/Applications`. The document queue window appears.
 2. **Add Files**:
    - Drag documents directly from Finder onto the Mass Print window.
    - Alternatively, click the **Add Files…** button (`Cmd + O`) or use the file picker.
@@ -135,6 +130,7 @@ When an Office (`.docx`, `.pptx`) or OpenDocument (`.odt`) file is imported:
 | `Backspace` / `Delete` | Remove Selected Document(s) from Queue |
 | `Cmd + K` | Clear Entire Queue |
 | `Cmd + R` | Refresh Printer List and Status |
+| `Option + Cmd + ↑ / ↓` | Move Selected Document Up / Down |
 | `Cmd + W` | Close Window |
 | `Cmd + Q` | Quit Mass Print |
 
@@ -178,7 +174,13 @@ Run the complete Rust core and FFI test suite:
 ```bash
 CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=/tmp/mass-print-target cargo test --workspace
 ```
-All 30 unit and integration tests execute in under 0.1 seconds.
+The Rust suite includes 30 automated tests and two ignored manual performance probes.
+
+Run the native queue integration checks with synthetic documents and an injected printer list:
+```bash
+MASS_PRINT_NATIVE_TEST_BUILD=/tmp/mass-print-target ./Tests/NativeAppTests/run.sh
+```
+These checks do not submit print jobs.
 
 ---
 

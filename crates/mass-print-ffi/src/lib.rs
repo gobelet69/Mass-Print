@@ -207,7 +207,9 @@ fn response(result: Result<Value, String>) -> *mut c_char {
     let serialized = serde_json::to_string(&value)
         .unwrap_or_else(|_| r#"{"ok":false,"error":"serialization failed"}"#.into());
     CString::new(serialized)
-        .unwrap_or_else(|_| CString::new(r#"{"ok":false,"error":"encoding error"}"#).unwrap_or_default())
+        .unwrap_or_else(|_| {
+            CString::new(r#"{"ok":false,"error":"encoding error"}"#).unwrap_or_default()
+        })
         .into_raw()
 }
 

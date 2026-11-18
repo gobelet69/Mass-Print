@@ -2,6 +2,21 @@
 
 All notable changes to Mass Print are documented here.
 
+## [0.3.1] - 2026-11-18
+
+### Fixed
+
+- Arrange printer, copies and print options across two rows to keep controls usable in compact windows.
+- Add native document selection and accessible move-up and move-down actions, with Option-Command-arrow keyboard shortcuts and boundary and busy-state guards.
+- Give queue removal and notice dismissal explicit accessibility labels, and use semantic text colours for statuses and notices.
+- Disable the Print All menu command when no printer is selected.
+- Include an Applications shortcut in the distribution disk image.
+
+### Changed
+
+- Add native queue integration checks using synthetic documents and an injected printer list, without submitting print jobs.
+- Apply standard Rust formatting without changing the printing engine.
+
 ## [0.3.0] - 2026-11-02
 
 ### Added

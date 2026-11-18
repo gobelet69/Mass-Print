@@ -87,15 +87,19 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 sortBar
                 Divider()
-                ScrollView {
-                    LazyVStack(spacing: 0) {
+                List(selection: $model.selectedDocumentID) {
                         ForEach(model.snapshot.documents) { document in
                             DocumentRow(
                                 document: document,
-                                showsInsertionIndicator: insertionTargetID == document.id
+                                showsInsertionIndicator: insertionTargetID == document.id,
+                                canMoveUp: model.canMoveDocument(id: document.id, offset: -1),
+                                canMoveDown: model.canMoveDocument(id: document.id, offset: 1),
+                                moveUp: { model.moveDocument(id: document.id, offset: -1) },
+                                moveDown: { model.moveDocument(id: document.id, offset: 1) }
                             ) {
                                 model.remove(id: document.id)
                             }
+                            .tag(document.id)
                             .draggable(document.id) {
                                 DocumentRow(document: document, remove: {})
                                     .frame(width: 420)
@@ -109,7 +113,6 @@ struct ContentView: View {
                             } isTargeted: { targeted in
                                 insertionTargetID = targeted ? document.id : nil
                             }
-                            Divider().padding(.leading, 52)
                         }
                         Color.clear
                             .frame(height: 28)
@@ -136,8 +139,8 @@ struct ContentView: View {
                                     insertionTargetID = nil
                                 }
                             }
-                    }
                 }
+                .listStyle(.inset)
             }
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
             .overlay {
@@ -178,43 +181,46 @@ struct ContentView: View {
     }
 
     private var printControls: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(documentCountSummary).font(.headline)
-                Text(pageSummary).foregroundStyle(.secondary)
-            }
-            .frame(width: 150, alignment: .leading)
-            Picker("Printer", selection: $model.selectedPrinter) {
-                ForEach(model.printers) { printer in
-                    Text(printer.isDefault ? "\(printer.name) — Default" : printer.name)
-                        .tag(printer.name)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(documentCountSummary).font(.headline)
+                    Text(pageSummary).foregroundStyle(.secondary)
+                }
+                .frame(width: 150, alignment: .leading)
+                Picker("Printer", selection: $model.selectedPrinter) {
+                    ForEach(model.printers) { printer in
+                        Text(printer.isDefault ? "\(printer.name) — Default" : printer.name)
+                            .tag(printer.name)
+                    }
+                }
+                .frame(minWidth: 240)
+                Stepper("Copies: \(model.copies)", value: $model.copies, in: 1...999)
+                    .frame(width: 125)
+                if model.isBusy {
+                    ProgressView().controlSize(.small)
+                        .accessibilityLabel("Preparing print jobs")
+                    Button("Cancel", action: model.cancelPrinting)
+                } else {
+                    Button("Print All", action: model.printAll)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(model.snapshot.documents.isEmpty || model.selectedPrinter.isEmpty)
                 }
             }
-            .frame(minWidth: 240)
-            Stepper("Copies: \(model.copies)", value: $model.copies, in: 1...999)
-                .frame(width: 125)
-            Picker("Paper", selection: $model.paperSize) {
-                Text("Default").tag("")
-                Text("A4").tag("A4")
-                Text("US Letter").tag("Letter")
-                Text("US Legal").tag("Legal")
-            }
-            .frame(width: 110)
-            Toggle("Grayscale", isOn: $model.grayscale)
-            Toggle("Two-sided", isOn: $model.duplex)
-            Toggle("Landscape", isOn: $model.landscape)
-            Toggle("Fit to Page", isOn: $model.fitToPage)
-            Spacer()
-            if model.isBusy {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel("Preparing print jobs")
-                Button("Cancel", action: model.cancelPrinting)
-            } else {
-                Button("Print All", action: model.printAll)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(model.snapshot.documents.isEmpty || model.selectedPrinter.isEmpty)
+            HStack(spacing: 16) {
+                Picker("Paper", selection: $model.paperSize) {
+                    Text("Default").tag("")
+                    Text("A4").tag("A4")
+                    Text("US Letter").tag("Letter")
+                    Text("US Legal").tag("Legal")
+                }
+                .frame(width: 175)
+                Toggle("Grayscale", isOn: $model.grayscale).fixedSize()
+                Toggle("Two-sided", isOn: $model.duplex).fixedSize()
+                Toggle("Landscape", isOn: $model.landscape).fixedSize()
+                Toggle("Fit to Page", isOn: $model.fitToPage).fixedSize()
+                Spacer(minLength: 0)
             }
         }
         .padding(20)
@@ -302,6 +308,10 @@ struct ContentView: View {
 private struct DocumentRow: View {
     let document: DocumentEntry
     var showsInsertionIndicator = false
+    var canMoveUp = false
+    var canMoveDown = false
+    var moveUp: (() -> Void)? = nil
+    var moveDown: (() -> Void)? = nil
     let remove: () -> Void
 
     var body: some View {
@@ -318,12 +328,23 @@ private struct DocumentRow: View {
             }
             Spacer()
             statusView
+            if let moveUp, let moveDown {
+                Button(action: moveUp) { Image(systemName: "arrow.up") }
+                    .disabled(!canMoveUp)
+                    .accessibilityLabel("Move \(document.name) up")
+                    .help("Move up (⌥⌘↑ for selected document)")
+                Button(action: moveDown) { Image(systemName: "arrow.down") }
+                    .disabled(!canMoveDown)
+                    .accessibilityLabel("Move \(document.name) down")
+                    .help("Move down (⌥⌘↓ for selected document)")
+            }
             Button(action: remove) {
                 Image(systemName: "xmark.circle.fill")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("Remove from queue")
+            .accessibilityLabel("Remove \(document.name) from queue")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
@@ -359,14 +380,14 @@ private struct DocumentRow: View {
         case .submitted:
             Text("Submitted")
                 .font(.caption2)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.primary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Color.green.opacity(0.12), in: Capsule())
         case .failed:
             HStack(spacing: 4) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(document.statusMessage ?? "Failed").font(.caption2).foregroundStyle(.orange).lineLimit(1)
+                Text(document.statusMessage ?? "Failed").font(.caption2).foregroundStyle(Color.primary).lineLimit(1)
             }
         case .canceled:
             Text("Canceled")
@@ -391,7 +412,7 @@ private struct NoticeView: View {
     var body: some View {
         HStack {
             Image(systemName: icon)
-            Text(notice.message)
+            Text(notice.message).foregroundStyle(Color.primary)
             Spacer()
             if let onDismiss {
                 Button(action: onDismiss) {
@@ -400,6 +421,7 @@ private struct NoticeView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Dismiss notice")
+                .accessibilityLabel("Dismiss notice")
             }
         }
         .padding(10)

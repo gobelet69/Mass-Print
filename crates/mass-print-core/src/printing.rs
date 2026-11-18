@@ -151,7 +151,10 @@ impl LpPrintBackend {
 
     fn submit(path: &Path, settings: &PrintSettings) -> Result<String, String> {
         let trimmed_printer = settings.printer.trim();
-        if trimmed_printer.is_empty() || trimmed_printer.starts_with('-') || trimmed_printer.contains(|c: char| c.is_control()) {
+        if trimmed_printer.is_empty()
+            || trimmed_printer.starts_with('-')
+            || trimmed_printer.contains(|c: char| c.is_control())
+        {
             return Err("Invalid printer destination name".to_string());
         }
 
@@ -169,7 +172,12 @@ impl LpPrintBackend {
         }
         if let Some(paper_size) = settings.paper_size.as_deref() {
             let trimmed_size = paper_size.trim();
-            if !trimmed_size.is_empty() && !trimmed_size.starts_with('-') && trimmed_size.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
+            if !trimmed_size.is_empty()
+                && !trimmed_size.starts_with('-')
+                && trimmed_size
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
+            {
                 command.args(["-o", &format!("media={trimmed_size}")]);
             }
         }
@@ -391,7 +399,12 @@ impl PrintBackend for LpPrintBackend {
     fn cancel_jobs(&self, job_ids: &[String]) {
         for job_id in job_ids {
             let trimmed = job_id.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with('-') && trimmed.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            if !trimmed.is_empty()
+                && !trimmed.starts_with('-')
+                && trimmed
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+            {
                 let _ = Command::new("/usr/bin/cancel")
                     .arg("--")
                     .arg(trimmed)

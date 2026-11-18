@@ -6,6 +6,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var snapshot = QueueSnapshot.empty
     @Published private(set) var printers: [PrinterInfo] = []
     @Published var selectedPrinter = ""
+    @Published var selectedDocumentID: String?
     @Published var copies = 1
     @Published var grayscale = false
     @Published var duplex = false
@@ -26,7 +27,7 @@ final class AppModel: ObservableObject {
     private let engineQueue = DispatchQueue(label: "com.massprint.engine", qos: .userInitiated)
     private let cancellationQueue = DispatchQueue(label: "com.massprint.cancellation", qos: .userInitiated)
 
-    init() {
+    init(printers suppliedPrinters: [PrinterInfo]? = nil) {
         do {
             engine = try RustEngine()
         } catch {
@@ -36,7 +37,12 @@ final class AppModel: ObservableObject {
             self?.add(paths: paths)
         }
         refresh()
-        loadPrinters()
+        if let suppliedPrinters {
+            printers = suppliedPrinters
+            selectedPrinter = suppliedPrinters.first(where: \.isDefault)?.name ?? suppliedPrinters.first?.name ?? ""
+        } else {
+            loadPrinters()
+        }
     }
 
     func chooseFiles() {
@@ -86,7 +92,7 @@ final class AppModel: ObservableObject {
     }
 
     func reorder(id: String, before targetID: String?) {
-        guard let source = snapshot.documents.firstIndex(where: { $0.id == id }) else { return }
+        guard !isBusy, let source = snapshot.documents.firstIndex(where: { $0.id == id }) else { return }
         let rawTarget = targetID.flatMap { target in
             snapshot.documents.firstIndex(where: { $0.id == target })
         } ?? snapshot.documents.count
@@ -95,6 +101,33 @@ final class AppModel: ObservableObject {
         destination = max(0, min(destination, snapshot.documents.count - 1))
         guard destination != source else { return }
         perform(["command": "reorder", "id": id, "destination": destination])
+    }
+
+    func canMoveDocument(id: String?, offset: Int) -> Bool {
+        guard !isBusy, abs(offset) == 1, let id,
+              let index = snapshot.documents.firstIndex(where: { $0.id == id }) else { return false }
+        return snapshot.documents.indices.contains(index + offset)
+    }
+
+    func moveDocument(id: String, offset: Int) {
+        guard canMoveDocument(id: id, offset: offset),
+              let source = snapshot.documents.firstIndex(where: { $0.id == id }) else { return }
+        let beforeIndex = source + offset + (offset > 0 ? 1 : 0)
+        selectedDocumentID = id
+        reorder(id: id, before: snapshot.documents.indices.contains(beforeIndex)
+            ? snapshot.documents[beforeIndex].id : nil)
+    }
+
+    func moveSelectedDocument(offset: Int) {
+        guard let selectedDocumentID else { return }
+        moveDocument(id: selectedDocumentID, offset: offset)
+    }
+
+    private func apply(_ snapshot: QueueSnapshot) {
+        self.snapshot = snapshot
+        if !snapshot.documents.contains(where: { $0.id == selectedDocumentID }) {
+            selectedDocumentID = snapshot.documents.first?.id
+        }
     }
 
     func sort(criterion: SortCriterion, direction: SortDirection) {
@@ -162,7 +195,7 @@ final class AppModel: ObservableObject {
 
     func refresh() {
         runInBackground(request: ["command": "snapshot"], as: QueueSnapshot.self) { [weak self] snapshot in
-            self?.snapshot = snapshot
+            self?.apply(snapshot)
         }
     }
 
@@ -188,7 +221,7 @@ final class AppModel: ObservableObject {
                 }
                 DispatchQueue.main.async {
                     if let snapshot {
-                        self?.snapshot = snapshot
+                        self?.apply(snapshot)
                     }
                 }
             } catch {
@@ -217,7 +250,7 @@ final class AppModel: ObservableObject {
                 DispatchQueue.main.async {
                     guard self != nil else { return }
                     if let snapshot {
-                        self?.snapshot = snapshot
+                        self?.apply(snapshot)
                     }
                     completion(value)
                 }

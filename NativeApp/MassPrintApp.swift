@@ -23,12 +23,18 @@ struct MassPrintApp: App {
                 Button("Clear Queue", action: model.clear)
                     .keyboardShortcut("k", modifiers: .command)
                     .disabled(model.snapshot.documents.isEmpty)
+                Button("Move Selected Document Up") { model.moveSelectedDocument(offset: -1) }
+                    .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                    .disabled(!model.canMoveDocument(id: model.selectedDocumentID, offset: -1))
+                Button("Move Selected Document Down") { model.moveSelectedDocument(offset: 1) }
+                    .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                    .disabled(!model.canMoveDocument(id: model.selectedDocumentID, offset: 1))
                 Button("Refresh Printers", action: model.loadPrinters)
                     .keyboardShortcut("r", modifiers: .command)
                 Divider()
                 Button("Print All", action: model.printAll)
                     .keyboardShortcut("p")
-                    .disabled(model.snapshot.documents.isEmpty || model.isBusy)
+                    .disabled(model.snapshot.documents.isEmpty || model.isBusy || model.selectedPrinter.isEmpty)
             }
         }
     }
